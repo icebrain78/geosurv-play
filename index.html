@@ -392,6 +392,15 @@
   .passlv .prw.prem{background:#2a2410;color:#8a7a4a;}
   .passlv .prw.prem.can{background:linear-gradient(135deg,var(--gold),#ff9f43);color:#3a2400;cursor:pointer;}
   .passlv .prw.got{background:#0f2e26;color:#57e0c0;}
+  .passlv .prw.excl{box-shadow:inset 0 0 0 1px var(--gold);font-weight:900;}
+  .passlv .prw.excl.can{animation:upglow 1.4s ease-in-out infinite;}
+  .mapchip.lock{opacity:.55;}
+  /* 스킨·칭호 선택 */
+  #cosmetics{width:100%;max-width:340px;margin:2px 0 6px;}
+  .cosrow{display:flex;align-items:center;gap:6px;margin:4px 0;}
+  .cosrow .cl{font-size:10.5px;color:var(--muted);font-weight:800;flex:0 0 46px;text-align:left;}
+  .cosrow .cchips{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
+  .cosrow .mapchip{padding:5px 10px;font-size:11px;}
   .dbox.celebrate{animation:celebr .55s ease-out;}
   @keyframes celebr{0%{transform:scale(1);}20%{transform:scale(1.05);box-shadow:0 0 44px rgba(255,207,92,.65),0 0 20px rgba(139,124,255,.5);}100%{transform:scale(1);}}
   .upburst{position:absolute;left:50%;top:50%;pointer-events:none;z-index:60;}
@@ -568,6 +577,7 @@
     <div id="charPick"></div>
     <div id="mapPick"></div>
     <div id="diffPick"></div>
+    <div id="cosmetics"></div>
     <div class="mainbtns">
       <button id="charBtn">🦸 캐릭터</button>
       <button id="attendBtn">📅 출석체크</button>
@@ -791,11 +801,12 @@ const CHESTS={
 const CARD_THRESH=[1,3,6,10,15];
 const USER_KEY="geoSurv.user.v1";
 const ATT_KEY="geoSurv.attend.v1";
-let META={gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void"}, RUNS=[], DAILY_DONE={}, DEX={en:{},we:{},ev:{},su:{}}, USER={name:null}, ATTEND={claimed:{}};
+let META={gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null}, RUNS=[], DAILY_DONE={}, DEX={en:{},we:{},ev:{},su:{}}, USER={name:null}, ATTEND={claimed:{}};
 function loadAll(){
-  try{const r=localStorage.getItem(META_KEY);if(r)META=Object.assign({gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void"},JSON.parse(r));}catch(e){}
+  try{const r=localStorage.getItem(META_KEY);if(r)META=Object.assign({gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null},JSON.parse(r));}catch(e){}
   if(!META.cards)META.cards={}; if(!META.chests)META.chests={n:0,p:0}; if(META.gems==null)META.gems=0;
-  if(!META.chars||!Object.keys(META.chars).length)META.chars={c_cube:1}; if(!META.selChar)META.selChar="c_cube"; if(!META.selMap)META.selMap="void";
+  if(!META.chars||!Object.keys(META.chars).length)META.chars={c_cube:1};
+  if(!META.skins)META.skins={}; if(!META.titles)META.titles={}; if(!META.maps)META.maps={}; if(!META.selChar)META.selChar="c_cube"; if(!META.selMap)META.selMap="void";
   // 카드 레벨 마이그레이션: 기존 저장분은 임계값 기준 자동 승급(1회), 이후엔 수동
   if(!META.cardLv){META.cardLv={};for(const id in META.cards){let lv=0;for(const t of CARD_THRESH)if((META.cards[id]||0)>=t)lv++;if(lv>0)META.cardLv[id]=lv;}saveMeta();}
   try{const r=localStorage.getItem(RUNS_KEY);if(r)RUNS=JSON.parse(r)||[];}catch(e){}
@@ -803,7 +814,7 @@ function loadAll(){
   try{const r=localStorage.getItem(DEX_KEY);if(r)DEX=Object.assign({en:{},we:{},ev:{},su:{}},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(USER_KEY);if(r)USER=Object.assign({name:null},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(ATT_KEY);if(r)ATTEND=Object.assign({claimed:{}},JSON.parse(r));}catch(e){}
-  loadEvent(); loadAch(); loadPass(); checkSeasonReset();
+  loadEvent(); loadAch(); loadPass(); checkSeasonReset(); mergePassContent();
   if(META.selDiff==null)META.selDiff=0;
 }
 function saveAttend(){try{localStorage.setItem(ATT_KEY,JSON.stringify(ATTEND));}catch(e){}}
@@ -943,10 +954,46 @@ const PASS_MISSIONS=[
   {id:"m_hard",  name:"치명 이상 클리어(3분)",goal:3,sp:3,track:g=>(g.diff>=2&&g.t>=180)?1:0, unit:"회"},
 ];
 const PASS_MAX=30;
-function passReward(lv){ // lv 1..30
-  if(lv%10===0)return{free:{gems:20},prem:{gems:40,chestP:1}};
-  if(lv%5===0) return{free:{chestN:1},prem:{gems:15,chestP:1}};
-  return{free:{gold:120+lv*20},prem:{gems:5,chestN:1}};
+/* ---- 패스 독점 콘텐츠: 스킨 / 칭호 / 시즌 한정 캐릭터 / 전용 맵 ---- */
+const SKINS={
+  s_neon:  {id:"s_neon",  name:"네온",     color:"#00ffe0", trail:"#00ffe0", desc:"형광 청록 광채"},
+  s_ember: {id:"s_ember", name:"잔불",     color:"#ff6a2a", trail:"#ffb36a", desc:"불꽃 잔상"},
+  s_void:  {id:"s_void",  name:"공허",     color:"#b06bff", trail:"#7a3aff", desc:"보랏빛 심연"},
+  s_gold:  {id:"s_gold",  name:"황금",     color:"#ffd24a", trail:"#fff2b0", desc:"시즌 최종 보상"},
+};
+const TITLES={
+  t_rookie:{id:"t_rookie",name:"신참",     color:"#8a94b0"},
+  t_hunter:{id:"t_hunter",name:"도형 사냥꾼",color:"#57e0c0"},
+  t_storm: {id:"t_storm", name:"폭풍의 주인",color:"#8b7cff"},
+  t_legend:{id:"t_legend",name:"시즌 전설", color:"#ffd24a"},
+};
+// 시즌 한정 캐릭터(패스로만 획득) — CHARS에 추가 등록됨
+const PASS_CHARS=[
+  {id:"p_prism", name:"프리즈머", shape:"diamond", color:"#00ffe0", rarity:"epic", pass:true,
+   desc:"[시즌 한정] 레이저로 시작 · 공속 +20% · 광역 +15%", mods:{hasteMul:1.2,areaMul:1.15}, startWeapon:"beam"},
+  {id:"p_eclipse",name:"이클립스", shape:"star", color:"#b06bff", rarity:"mythic", pass:true,
+   desc:"[시즌 한정] 치명 +25% · 공격 +30% · 처치 시 회복", mods:{critAdd:0.25,dmgMul:1.3,lifesteal:1}},
+];
+// 패스 전용 맵
+const PASS_MAPS=[
+  {id:"arena",name:"콜로세움",size:1150,grid:"rgba(255,210,74,.07)",border:"#c9a227",obColor:"#7a5f1a",pass:true,
+   obstacles:[{x:-300,y:0,r:52},{x:300,y:0,r:52},{x:0,y:-300,r:52},{x:0,y:300,r:52}]},
+];
+function passReward(lv){ // lv 1..30 — 독점 콘텐츠 중심
+  const EX={
+    3:{free:{title:"t_rookie"},                 prem:{skin:"s_neon"}},
+    5:{free:{chestN:1},                          prem:{gems:15}},
+    8:{free:{gold:600},                          prem:{title:"t_hunter"}},
+   10:{free:{skin:"s_ember"},                    prem:{char:"p_prism"}},
+   13:{free:{gold:900},                          prem:{chestP:1}},
+   15:{free:{chestP:1},                          prem:{map:"arena"}},
+   18:{free:{gems:15},                           prem:{skin:"s_void"}},
+   20:{free:{title:"t_storm"},                   prem:{gems:40,chestP:1}},
+   25:{free:{chestP:1},                          prem:{skin:"s_gold"}},
+   30:{free:{gems:30},                           prem:{char:"p_eclipse",title:"t_legend"}},
+  };
+  if(EX[lv])return EX[lv];
+  return {free:{gold:120+lv*20}, prem:{gems:5,chestN:1}};
 }
 function passAddProgress(g){
   checkSeasonReset();
@@ -974,8 +1021,19 @@ function claimPass(lv,prem){
   if(rw.gold)META.gold+=rw.gold; if(rw.gems)META.gems+=rw.gems;
   if(rw.chestN)META.chests.n=(META.chests.n||0)+rw.chestN;
   if(rw.chestP)META.chests.p=(META.chests.p||0)+rw.chestP;
+  if(rw.skin){META.skins=META.skins||{};META.skins[rw.skin]=1;}
+  if(rw.title){META.titles=META.titles||{};META.titles[rw.title]=1;}
+  if(rw.char){META.chars[rw.char]=(META.chars[rw.char]||0)+1;}
+  if(rw.map){META.maps=META.maps||{};META.maps[rw.map]=1;}
   PASS.claimed[key]=1; savePass(); saveMeta(); return rw;
 }
+function mergePassContent(){
+  PASS_CHARS.forEach(c=>{if(!CHARS.some(x=>x.id===c.id)){CHARS.push(c);CHAR_BY[c.id]=c;}});
+  PASS_MAPS.forEach(m=>{if(!MAPS.some(x=>x.id===m.id)){MAPS.push(m);MAP_BY[m.id]=m;}});
+}
+function ownSkin(id){return !!(META.skins&&META.skins[id]);}
+function ownTitle(id){return !!(META.titles&&META.titles[id]);}
+function ownMap(id){return !!(META.maps&&META.maps[id]);}
 
 const ACH_KEY="geoSurv.ach.v1";
 let ACH={done:{}};
@@ -1158,6 +1216,7 @@ function newGame(opts){
     hpMul:(md.hpMul||1)*lvB, regenAdd:md.regenAdd||0, lifesteal:md.lifesteal||0};
   G.lifesteal=G.cmod.lifesteal;
   G.selCharRef=ch;
+  G.skin=(META.selSkin&&ownSkin(META.selSkin))?SKINS[META.selSkin]:null;   // 패스 스킨
   p.maxhp=100+META_UPS[0].val*metaLv("hp");
   G.xpMult=1+0.08*metaLv("xp");
   if(opts.daily){
@@ -1943,9 +2002,16 @@ function render(){
     ctx.globalAlpha=1;
   }
   if(!(p.iframe>0&&(G.t*20|0)%2)){
+    const sk=G.skin;
     shape(ctx,"circle",p.x,p.y,p.r+3,"#1b2338",0);
-    shape(ctx,"diamond",p.x,p.y,p.r,"#ffffff",G.t*2);
-    shape(ctx,"diamond",p.x,p.y,p.r*0.6,"#8b7cff",-G.t*2);
+    if(sk){ // 스킨 광채
+      ctx.globalAlpha=0.28;shape(ctx,"circle",p.x,p.y,p.r+9+Math.sin(G.t*4)*2,sk.color,0);ctx.globalAlpha=1;
+      shape(ctx,"diamond",p.x,p.y,p.r,sk.color,G.t*2);
+      shape(ctx,"diamond",p.x,p.y,p.r*0.6,sk.trail,-G.t*2);
+    }else{
+      shape(ctx,"diamond",p.x,p.y,p.r,"#ffffff",G.t*2);
+      shape(ctx,"diamond",p.x,p.y,p.r*0.6,"#8b7cff",-G.t*2);
+    }
   }
 
   for(const tx of G.texts){ctx.globalAlpha=Math.min(1,tx.life*2.5);ctx.fillStyle=tx.color;
@@ -2075,7 +2141,8 @@ function goMainTab(){
 function renderMain(){
   document.getElementById("goldValMain").textContent=META.gold;
   const lb=document.getElementById("loginBar");
-  if(USER.name)lb.innerHTML=`<span>👤 <span class="who">${USER.name}</span> 님</span><button id="logoutBtn">로그아웃</button>`;
+  const tt=(META.selTitle&&TITLES[META.selTitle])?`<span style="color:${TITLES[META.selTitle].color};font-weight:800;font-size:11px;">[${TITLES[META.selTitle].name}]</span> `:"";
+  if(USER.name)lb.innerHTML=`<span>${tt}👤 <span class="who">${USER.name}</span> 님</span><button id="logoutBtn">로그아웃</button>`;
   else lb.innerHTML=`<button id="loginBtn">🔑 로그인 / 닉네임 설정</button>`;
   const li=document.getElementById("loginBtn");if(li)li.onclick=openLogin;
   const lo=document.getElementById("logoutBtn");if(lo)lo.onclick=()=>{USER.name=null;saveUser();renderMain();menuToast("로그아웃되었습니다");};
@@ -2083,7 +2150,7 @@ function renderMain(){
   const best=RUNS.length?RUNS[0]:null;
   document.getElementById("bestLine").innerHTML=best?
     `최고 기록: <b>${fmtT(best.t)}</b> 생존 · Lv${best.lv} · ☠${best.k}`:"아직 기록이 없습니다. 첫 런을 시작해보세요!";
-  renderCharPick(); renderMapPick(); renderDiffPick(); renderEventBanner();
+  renderCharPick(); renderMapPick(); renderDiffPick(); renderCosmetics(); renderEventBanner();
 }
 /* ---------- 캐릭터/맵 선택 (메인) ---------- */
 function renderCharPick(){
@@ -2095,8 +2162,12 @@ function renderCharPick(){
 }
 function renderMapPick(){
   const el=document.getElementById("mapPick"); if(!el)return;
-  el.innerHTML=MAPS.map(m=>`<div class="mapchip ${META.selMap===m.id?"on":""}" data-map="${m.id}">${m.name}</div>`).join("");
-  el.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{META.selMap=b.dataset.map;saveMeta();renderMapPick();Snd.init();Snd.uiTick();});
+  el.innerHTML=MAPS.map(m=>{const locked=m.pass&&!ownMap(m.id);
+    return `<div class="mapchip ${META.selMap===m.id?"on":""} ${locked?"lock":""}" data-map="${m.id}">${locked?"🔒 ":""}${m.name}</div>`;}).join("");
+  el.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{
+    const m=MAP_BY[b.dataset.map];
+    if(m.pass&&!ownMap(m.id)){menuToast("시즌 패스 보상으로 해금됩니다");return;}
+    META.selMap=b.dataset.map;saveMeta();renderMapPick();Snd.init();Snd.uiTick();});
 }
 function renderDiffPick(){
   const el=document.getElementById("diffPick"); if(!el)return;
@@ -2119,7 +2190,30 @@ function renderAch(){
 }
 /* ---------- 시즌 패스 탭 ---------- */
 function rwText(rw){const p=[];if(rw.gold)p.push("◆"+rw.gold);if(rw.gems)p.push("💎"+rw.gems);
-  if(rw.chestN)p.push("🎁×"+rw.chestN);if(rw.chestP)p.push("💠×"+rw.chestP);return p.join(" ");}
+  if(rw.chestN)p.push("🎁×"+rw.chestN);if(rw.chestP)p.push("💠×"+rw.chestP);
+  if(rw.skin)p.push("🎨"+SKINS[rw.skin].name);
+  if(rw.title)p.push("🏷"+TITLES[rw.title].name);
+  if(rw.char)p.push("🦸"+(CHAR_BY[rw.char]?CHAR_BY[rw.char].name:rw.char));
+  if(rw.map)p.push("🗺"+(MAP_BY[rw.map]?MAP_BY[rw.map].name:rw.map));
+  return p.join(" ");}
+function isExclusive(rw){return !!(rw.skin||rw.title||rw.char||rw.map);}
+/* 스킨/칭호 선택 */
+function renderCosmetics(){
+  const el=document.getElementById("cosmetics"); if(!el)return;
+  const skins=Object.values(SKINS).filter(s=>ownSkin(s.id));
+  const titles=Object.values(TITLES).filter(t=>ownTitle(t.id));
+  if(!skins.length&&!titles.length){el.innerHTML=`<div style="font-size:11px;color:var(--muted);">시즌 패스에서 스킨·칭호를 획득하세요</div>`;return;}
+  let h="";
+  if(skins.length){h+=`<div class="cosrow"><span class="cl">🎨 스킨</span>
+    <div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-skin="">기본</div>`+
+    skins.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-skin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div></div>`;}
+  if(titles.length){h+=`<div class="cosrow"><span class="cl">🏷 칭호</span>
+    <div class="cchips"><div class="mapchip ${!META.selTitle?"on":""}" data-title="">없음</div>`+
+    titles.map(t=>`<div class="mapchip ${META.selTitle===t.id?"on":""}" data-title="${t.id}" style="${META.selTitle===t.id?"background:"+t.color+";color:#08111a":"color:"+t.color}">${t.name}</div>`).join("")+`</div></div>`;}
+  el.innerHTML=h;
+  el.querySelectorAll("[data-skin]").forEach(b=>b.onclick=()=>{META.selSkin=b.dataset.skin||null;saveMeta();renderCosmetics();Snd.uiTick();});
+  el.querySelectorAll("[data-title]").forEach(b=>b.onclick=()=>{META.selTitle=b.dataset.title||null;saveMeta();renderCosmetics();renderMain();Snd.uiTick();});
+}
 function renderPass(){
   checkSeasonReset();
   const el=document.getElementById("passBody"); if(!el)return;
@@ -2127,7 +2221,7 @@ function renderPass(){
   let h=`<div class="passhead">
     <div><b style="font-size:16px;color:var(--acc)">시즌 ${PASS.season%100}</b> · 레벨 <b style="color:var(--gold)">${lv}</b>/${PASS_MAX}</div>
     <div class="bar" style="margin-top:6px;"><i style="width:${spInLv/3*100}%;background:linear-gradient(90deg,var(--acc),#6a5acd)"></i></div>
-    <div style="font-size:10.5px;color:var(--muted);margin-top:3px;">SP ${PASS.sp} (레벨당 3 SP) · 매주 초기화</div>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:3px;">SP ${PASS.sp} (레벨당 3 SP) · 매주 초기화</div>\n    <div style="font-size:10.5px;color:var(--gold);margin-top:4px;">✨ 여기서만 얻는 <b>스킨·칭호·시즌 한정 캐릭터·전용 맵</b></div>
     ${PASS.premium?'<div class="premon">✨ 프리미엄 패스 보유중</div>':'<button class="upbtn" id="buyPrem" style="margin-top:8px;">✨ 프리미엄 패스 구매 (💎 150)</button>'}
   </div>`;
   // 미션
@@ -2145,8 +2239,8 @@ function renderPass(){
     const fc=PASS.claimed["f"+i], pc=PASS.claimed["p"+i];
     h+=`<div class="passlv ${unlocked?"on":""}">
       <div class="pl">Lv${i}</div>
-      <div class="prw free ${fc?"got":""} ${unlocked&&!fc?"can":""}" data-pass="${i}:f">${fc?"✓":rwText(r.free)}</div>
-      <div class="prw prem ${pc?"got":""} ${unlocked&&PASS.premium&&!pc?"can":""}" data-pass="${i}:p">${pc?"✓":(PASS.premium?rwText(r.prem):"🔒 "+rwText(r.prem))}</div>
+      <div class="prw free ${fc?"got":""} ${unlocked&&!fc?"can":""} ${isExclusive(r.free)?"excl":""}" data-pass="${i}:f">${fc?"✓":rwText(r.free)}</div>
+      <div class="prw prem ${pc?"got":""} ${unlocked&&PASS.premium&&!pc?"can":""} ${isExclusive(r.prem)?"excl":""}" data-pass="${i}:p">${pc?"✓":(PASS.premium?rwText(r.prem):"🔒 "+rwText(r.prem))}</div>
     </div>`;
   }
   h+=`</div>`;
