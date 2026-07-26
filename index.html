@@ -429,11 +429,18 @@
   .skincard.own .sp{color:var(--muted);}
   .skincard.sel{box-shadow:0 0 12px rgba(139,124,255,.6);}
   .skincard.sel .sp{color:var(--xp);}
-  /* 캐릭터 상세 안의 스킨 선택 */
-  .skinsel{margin-top:10px;padding-top:10px;border-top:1px dashed #26304d;}
-  .skinsel .ssl{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:6px;text-align:left;}
-  .skinsel .cchips{display:flex;gap:5px;flex-wrap:wrap;}
-  .skinsel .mapchip{padding:6px 11px;font-size:11.5px;}
+  /* 캐릭터 모달: 선택된 캐릭터 + 스킨 선택 */
+  .csel{margin-top:10px;padding-top:10px;border-top:1px dashed #26304d;text-align:left;}
+  .cselhead{display:flex;align-items:center;gap:11px;margin-bottom:9px;}
+  .cselhead canvas{width:44px;height:44px;flex:0 0 44px;background:#0f1424;border:1px solid #26304d;border-radius:12px;padding:4px;}
+  .cselhead .cn2{font-size:14px;font-weight:800;}
+  .cselhead .cd2{font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.35;}
+  .cselhead .rr{font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;}
+  .ssl2{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:6px;}
+  .csel .cchips{display:flex;gap:5px;flex-wrap:wrap;}
+  .csel .mapchip{padding:6px 11px;font-size:11.5px;}
+  .detbtn{width:100%;margin-top:9px;padding:9px;border:1px solid #33406a;border-radius:10px;background:#1b2338;
+    color:var(--muted);font-size:11.5px;font-weight:700;cursor:pointer;}
   .dbox.celebrate{animation:celebr .55s ease-out;}
   @keyframes celebr{0%{transform:scale(1);}20%{transform:scale(1.05);box-shadow:0 0 44px rgba(255,207,92,.65),0 0 20px rgba(139,124,255,.5);}100%{transform:scale(1);}}
   .upburst{position:absolute;left:50%;top:50%;pointer-events:none;z-index:60;}
@@ -531,6 +538,7 @@
   <div style="font-size:11.5px;color:var(--muted);text-align:center;margin:0 0 10px;line-height:1.5;">
     일반·고급 <b style="color:var(--gold)">상자</b>에서 캐릭터가 나옵니다 · 중복 획득 시 강화<br>탭하면 특성 확인 후 선택</div>
   <div id="charGrid" class="chargrid"></div>
+  <div id="charSkinArea"></div>
   <button class="dclose" id="charClose">닫기</button>
 </div></div>
 
@@ -2362,7 +2370,46 @@ function renderCharModal(){
       <div class="cn">${c.name}</div></div>`;
   }).join("");
   grid.querySelectorAll("canvas[data-shape]").forEach(cv=>{shape(cv.getContext("2d"),cv.dataset.shape,20,20,14,cv.dataset.color,0.3);});
-  grid.querySelectorAll("[data-char]").forEach(el=>el.onclick=()=>showCharDetail(el.dataset.char));
+  grid.querySelectorAll("[data-char]").forEach(el=>el.onclick=()=>{
+    const id=el.dataset.char;
+    if(charCount(id)>0){                       // 보유 → 즉시 선택 + 스킨 영역 갱신
+      META.selChar=id; saveMeta(); Snd.uiTick();
+      renderCharModal(); renderCharPick(); renderMain();
+    }else{                                     // 미보유 → 특성 미리보기
+      showCharDetail(id);
+    }
+  });
+  renderCharSkinArea();
+}
+/* 선택된 캐릭터 + 그 아래 스킨 선택 */
+function renderCharSkinArea(){
+  const el=document.getElementById("charSkinArea"); if(!el)return;
+  const c=CHAR_BY[META.selChar]||CHARS[0], r=RARITY[c.rarity], lv=charLevel(c.id);
+  const owns=Object.values(SKINS).filter(s=>ownSkin(s.id));
+  const sk=(META.selSkin&&ownSkin(META.selSkin))?SKINS[META.selSkin]:null;
+  let h=`<div class="csel">
+    <div class="cselhead">
+      <canvas width="46" height="46" id="cselIco"></canvas>
+      <div><div class="cn2">${c.name} <span class="rr" style="background:${r.color}22;color:${r.color}">${r.name} Lv${lv}</span></div>
+        <div class="cd2">${charModText(c.mods)}</div>
+        ${c.startWeapon?`<div class="cd2">🗡 시작 무기: ${WEAPONS[c.startWeapon].name}</div>`:""}</div>
+    </div>
+    <div class="ssl2">🎨 스킨 선택${sk?` <span style="color:${sk.color}">· ${sk.name}</span>`:""}</div>`;
+  if(!owns.length){
+    h+=`<div style="font-size:11px;color:var(--muted);padding:2px 0 4px;">보유한 스킨이 없습니다 · 🛒상점에서 구매하세요</div>`;
+  }else{
+    h+=`<div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-cskin="">기본</div>`+
+      owns.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-cskin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div>`;
+  }
+  h+=`<button class="detbtn" id="charDetBtn">ℹ️ 특성 자세히 보기</button></div>`;
+  el.innerHTML=h;
+  shape(document.getElementById("cselIco").getContext("2d"),c.shape,23,23,16,sk?sk.color:c.color,0.3);
+  el.querySelectorAll("[data-cskin]").forEach(b=>b.onclick=()=>{
+    META.selSkin=b.dataset.cskin||null; saveMeta(); Snd.uiTick();
+    menuToast(META.selSkin?(SKINS[META.selSkin].name+" 스킨 장착"):"기본 외형");
+    renderCharSkinArea(); renderCharPick(); renderMain();});
+  const db=document.getElementById("charDetBtn");
+  if(db)db.onclick=()=>showCharDetail(META.selChar);
 }
 // 캐릭터 특성 텍스트
 function charModText(md){
@@ -2394,18 +2441,6 @@ function showCharDetail(id){
       🎯 특성: <b>${charModText(c.mods)}</b>${c.startWeapon?`<br>🗡 시작 무기: <b>${WEAPONS[c.startWeapon].name}</b>`:""}
       <br>⬆ 강화(Lv${lv}): 공격·체력 <b>+${bonus}%</b>${nx?` <span style="color:var(--muted)">(다음 Lv ${cnt}/${nx.need}장)</span>`:" <span style='color:var(--gold)'>MAX</span>"}</div>
       <button class="upbtn" id="charSelBtn" style="background:${sel?'#26304d':'linear-gradient(135deg,var(--acc),#6a5acd)'};color:#fff;">${sel?"✓ 선택됨":"이 캐릭터로 선택"}</button>`;
-    // 선택된 캐릭터에만 스킨 선택 노출
-    if(sel){
-      const owns=Object.values(SKINS).filter(s=>ownSkin(s.id));
-      body+=`<div class="skinsel"><div class="ssl">🎨 스킨</div>`;
-      if(!owns.length){
-        body+=`<div style="font-size:11px;color:var(--muted);padding:4px 0;">보유한 스킨이 없습니다 · 🛒상점에서 구매하세요</div>`;
-      }else{
-        body+=`<div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-cskin="">기본</div>`+
-          owns.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-cskin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div>`;
-      }
-      body+=`</div>`;
-    }
   }
   box.innerHTML=`
     <div class="dhead"><canvas width="60" height="60" id="dCanvas"></canvas>
