@@ -411,6 +411,11 @@
   .skincard.own .sp{color:var(--muted);}
   .skincard.sel{box-shadow:0 0 12px rgba(139,124,255,.6);}
   .skincard.sel .sp{color:var(--xp);}
+  /* 캐릭터 상세 안의 스킨 선택 */
+  .skinsel{margin-top:10px;padding-top:10px;border-top:1px dashed #26304d;}
+  .skinsel .ssl{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:6px;text-align:left;}
+  .skinsel .cchips{display:flex;gap:5px;flex-wrap:wrap;}
+  .skinsel .mapchip{padding:6px 11px;font-size:11.5px;}
   .dbox.celebrate{animation:celebr .55s ease-out;}
   @keyframes celebr{0%{transform:scale(1);}20%{transform:scale(1.05);box-shadow:0 0 44px rgba(255,207,92,.65),0 0 20px rgba(139,124,255,.5);}100%{transform:scale(1);}}
   .upburst{position:absolute;left:50%;top:50%;pointer-events:none;z-index:60;}
@@ -1113,7 +1118,7 @@ function stopEvent(){ ACTIVE_EVENT=null; saveEvent(); }
 /* ================================================================
    무기 10종 / 진화 10종
    ================================================================ */
-const MAXLV=8, WEAPON_SLOTS=5;
+const MAXLV=8, WEAPON_SLOTS=4;   // 무기 슬롯 상한(가득 차면 보유 무기 강화만 등장)
 const WEAPONS={
   tri_shot:{id:"tri_shot",name:"관통탄",shape:"triangle",color:"#8b7cff",desc:"가까운 적에게 관통 삼각탄",fuseWith:"haste",evo:"hex_saw"},
   sq_orbit:{id:"sq_orbit",name:"궤도 큐브",shape:"square",color:"#57e0c0",desc:"몸 주위를 도는 네모 타격",fuseWith:"amp",evo:"star_burst"},
@@ -1256,10 +1261,13 @@ function newGame(opts){
   p.hp=p.maxhp;
   if(arcFx("startHalfHp",0))p.hp=p.maxhp*0.5;   // 성장의 나선
 }
-function addWeapon(id,lv){const ref=WEAPONS[id]||EVOS[id];
+function addWeapon(id,lv){
+  if(getWeapon(id))return false;                     // 이미 보유
+  if(G.weapons.length>=WEAPON_SLOTS)return false;    // 슬롯 가득 참
+  const ref=WEAPONS[id]||EVOS[id];
   const start=lv||Math.max(1,Math.min(MAXLV,cardLevel(id)||1));
   G.weapons.push({id,ref,lv:start,timer:0,angle:0,mines:[]});
-  discover("we",id);}
+  discover("we",id); return true;}
 function getWeapon(id){return G.weapons.find(w=>w.id===id);}
 
 function recalcPassives(){
@@ -1347,7 +1355,9 @@ function renderChoiceOverlay(){
   const ev=currentEv; if(!ev)return;
   document.getElementById("ovTitle").textContent=ev.title;
   document.getElementById("ovTitle").className=ev.fuse?"fuse":"";
-  document.getElementById("ovSub").textContent=ev.sub;
+  const full=G.weapons.length>=WEAPON_SLOTS;
+  document.getElementById("ovSub").innerHTML=ev.sub+
+    ` <span style="color:${full?"var(--gold)":"var(--muted)"};font-size:11px;">· 무기 ${G.weapons.length}/${WEAPON_SLOTS}${full?" (가득참 — 강화만)":""}</span>`;
   overlay.classList.add("show");
   cardsEl.innerHTML="";
   ev.cards.forEach(o=>{
@@ -2171,9 +2181,11 @@ function renderMain(){
 function renderCharPick(){
   const el=document.getElementById("charPick"); if(!el)return;
   const c=CHAR_BY[META.selChar]||CHARS[0], lv=charLevel(META.selChar), r=RARITY[c.rarity];
+  const sk=(META.selSkin&&ownSkin(META.selSkin))?SKINS[META.selSkin]:null;
   el.innerHTML=`<span>캐릭터</span><canvas width="30" height="30" id="cpCanvas"></canvas>
-    <b>${c.name}</b> <span class="rr" style="background:${r.color}22;color:${r.color}">${r.name} Lv${lv}</span>`;
-  shape(document.getElementById("cpCanvas").getContext("2d"),c.shape,15,15,11,c.color,0.3);
+    <b>${c.name}</b> <span class="rr" style="background:${r.color}22;color:${r.color}">${r.name} Lv${lv}</span>`+
+    (sk?` <span class="rr" style="background:${sk.color}22;color:${sk.color}">🎨${sk.name}</span>`:"");
+  shape(document.getElementById("cpCanvas").getContext("2d"),c.shape,15,15,11,sk?sk.color:c.color,0.3);
 }
 function renderMapPick(){
   const el=document.getElementById("mapPick"); if(!el)return;
@@ -2215,18 +2227,12 @@ function isExclusive(rw){return !!(rw.skin||rw.title||rw.char||rw.map);}
 /* 스킨/칭호 선택 */
 function renderCosmetics(){
   const el=document.getElementById("cosmetics"); if(!el)return;
-  const skins=Object.values(SKINS).filter(s=>ownSkin(s.id));
+  // 스킨 선택은 🦸캐릭터 모달(캐릭터 선택 후)에서. 여기선 칭호만.
   const titles=Object.values(TITLES).filter(t=>ownTitle(t.id));
-  if(!skins.length&&!titles.length){el.innerHTML=`<div style="font-size:11px;color:var(--muted);">🎨 스킨은 <b style="color:var(--acc)">상점</b>에서 구매 · 칭호는 <b style="color:var(--gold)">시즌 패스</b>에서 획득</div>`;return;}
-  let h="";
-  if(skins.length){h+=`<div class="cosrow"><span class="cl">🎨 스킨</span>
-    <div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-skin="">기본</div>`+
-    skins.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-skin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div></div>`;}
-  if(titles.length){h+=`<div class="cosrow"><span class="cl">🏷 칭호</span>
+  if(!titles.length){el.innerHTML="";return;}
+  el.innerHTML=`<div class="cosrow"><span class="cl">🏷 칭호</span>
     <div class="cchips"><div class="mapchip ${!META.selTitle?"on":""}" data-title="">없음</div>`+
-    titles.map(t=>`<div class="mapchip ${META.selTitle===t.id?"on":""}" data-title="${t.id}" style="${META.selTitle===t.id?"background:"+t.color+";color:#08111a":"color:"+t.color}">${t.name}</div>`).join("")+`</div></div>`;}
-  el.innerHTML=h;
-  el.querySelectorAll("[data-skin]").forEach(b=>b.onclick=()=>{META.selSkin=b.dataset.skin||null;saveMeta();renderCosmetics();Snd.uiTick();});
+    titles.map(t=>`<div class="mapchip ${META.selTitle===t.id?"on":""}" data-title="${t.id}" style="${META.selTitle===t.id?"background:"+t.color+";color:#08111a":"color:"+t.color}">${t.name}</div>`).join("")+`</div></div>`;
   el.querySelectorAll("[data-title]").forEach(b=>b.onclick=()=>{META.selTitle=b.dataset.title||null;saveMeta();renderCosmetics();renderMain();Snd.uiTick();});
 }
 function renderPass(){
@@ -2335,6 +2341,18 @@ function showCharDetail(id){
       🎯 특성: <b>${charModText(c.mods)}</b>${c.startWeapon?`<br>🗡 시작 무기: <b>${WEAPONS[c.startWeapon].name}</b>`:""}
       <br>⬆ 강화(Lv${lv}): 공격·체력 <b>+${bonus}%</b>${nx?` <span style="color:var(--muted)">(다음 Lv ${cnt}/${nx.need}장)</span>`:" <span style='color:var(--gold)'>MAX</span>"}</div>
       <button class="upbtn" id="charSelBtn" style="background:${sel?'#26304d':'linear-gradient(135deg,var(--acc),#6a5acd)'};color:#fff;">${sel?"✓ 선택됨":"이 캐릭터로 선택"}</button>`;
+    // 선택된 캐릭터에만 스킨 선택 노출
+    if(sel){
+      const owns=Object.values(SKINS).filter(s=>ownSkin(s.id));
+      body+=`<div class="skinsel"><div class="ssl">🎨 스킨</div>`;
+      if(!owns.length){
+        body+=`<div style="font-size:11px;color:var(--muted);padding:4px 0;">보유한 스킨이 없습니다 · 🛒상점에서 구매하세요</div>`;
+      }else{
+        body+=`<div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-cskin="">기본</div>`+
+          owns.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-cskin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div>`;
+      }
+      body+=`</div>`;
+    }
   }
   box.innerHTML=`
     <div class="dhead"><canvas width="60" height="60" id="dCanvas"></canvas>
@@ -2343,6 +2361,10 @@ function showCharDetail(id){
     ${body}
     <button class="dclose" id="dCloseBtn">닫기</button>`;
   shape(document.getElementById("dCanvas").getContext("2d"),c.shape,30,30,22,c.color,0.3);
+  box.querySelectorAll("[data-cskin]").forEach(b=>b.onclick=()=>{
+    META.selSkin=b.dataset.cskin||null; saveMeta(); Snd.uiTick();
+    menuToast(META.selSkin?(SKINS[META.selSkin].name+" 스킨 장착"):"기본 외형");
+    showCharDetail(id); renderCharPick();});
   const sb=document.getElementById("charSelBtn");
   if(sb)sb.onclick=()=>{META.selChar=id;saveMeta();closeDetail();renderCharModal();renderCharPick();Snd.uiTick();menuToast(c.name+" 선택");};
   document.getElementById("dCloseBtn").onclick=closeDetail;
