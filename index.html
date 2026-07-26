@@ -280,6 +280,7 @@
   #detailModal,#loginModal{position:fixed;inset:0;z-index:56;background:rgba(4,6,12,.82);backdrop-filter:blur(3px);
     display:none;align-items:center;justify-content:center;padding:24px;}
   #detailModal.show,#loginModal.show{display:flex;}
+  #detailModal{z-index:59;}   /* 캐릭터/상세 모달 위에 뜨도록 */
   .dbox{background:linear-gradient(160deg,#141a2b,#1b2338);border:1px solid #26304d;border-radius:18px;padding:22px;
     max-width:340px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.4);animation:pop .18s ease;}
   .dhead{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
@@ -443,14 +444,9 @@
 
 <!-- 캐릭터 (뽑기/선택/강화) -->
 <div id="charModal"><div class="dbox wide">
-  <h2 style="margin:0 0 8px;font-size:19px;text-align:center;">🦸 캐릭터</h2>
-  <div class="goldbar" style="font-size:13px;">◆ <span id="charGold">0</span> · 💎 <span id="charGem">0</span></div>
-  <div id="charResult"></div>
-  <div class="gachabtns">
-    <button id="gachaN">일반 뽑기<small>◆200</small></button>
-    <button id="gachaP">고급 뽑기<small>💎40</small></button>
-  </div>
-  <div style="font-size:10.5px;color:var(--muted);text-align:center;margin:2px 0 8px;">중복 뽑으면 그 캐릭터가 강화됩니다 · 탭하면 선택</div>
+  <h2 style="margin:0 0 6px;font-size:19px;text-align:center;">🦸 캐릭터</h2>
+  <div style="font-size:11.5px;color:var(--muted);text-align:center;margin:0 0 10px;line-height:1.5;">
+    일반·고급 <b style="color:var(--gold)">상자</b>에서 캐릭터가 나옵니다 · 중복 획득 시 강화<br>탭하면 특성 확인 후 선택</div>
   <div id="charGrid" class="chargrid"></div>
   <button class="dclose" id="charClose">닫기</button>
 </div></div>
@@ -1873,34 +1869,65 @@ function renderMapPick(){
   el.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{META.selMap=b.dataset.map;saveMeta();renderMapPick();Snd.init();Snd.uiTick();});
 }
 /* ---------- 캐릭터 모달 ---------- */
-function openCharModal(){document.getElementById("charModal").classList.add("show");document.getElementById("charResult").innerHTML="";renderCharModal();Snd.init();Snd.uiTick();}
+function openCharModal(){document.getElementById("charModal").classList.add("show");renderCharModal();Snd.init();Snd.uiTick();}
 function renderCharModal(){
-  document.getElementById("charGold").textContent=META.gold;
-  document.getElementById("charGem").textContent=META.gems;
   const grid=document.getElementById("charGrid");
   grid.innerHTML=CHARS.map(c=>{
     const owned=charCount(c.id)>0, lv=charLevel(c.id), r=RARITY[c.rarity], sel=META.selChar===c.id;
-    if(!owned)return `<div class="charcell locked" style="border-color:${r.color}44"><div class="q">?</div><div class="cn" style="color:${r.color}">${r.name}</div></div>`;
+    if(!owned)return `<div class="charcell locked" data-char="${c.id}" style="border-color:${r.color}44"><div class="q">?</div><div class="cn" style="color:${r.color}">${r.name}</div></div>`;
     return `<div class="charcell ${sel?"sel":""}" data-char="${c.id}" style="${sel?"":"border-color:"+r.color+"66"}">
       <div class="cl">Lv${lv}</div>
       <canvas width="40" height="40" data-shape="${c.shape}" data-color="${c.color}"></canvas>
       <div class="cn">${c.name}</div></div>`;
   }).join("");
   grid.querySelectorAll("canvas[data-shape]").forEach(cv=>{shape(cv.getContext("2d"),cv.dataset.shape,20,20,14,cv.dataset.color,0.3);});
-  grid.querySelectorAll("[data-char]").forEach(el=>el.onclick=()=>{META.selChar=el.dataset.char;saveMeta();renderCharModal();renderCharPick();Snd.uiTick();
-    const c=CHAR_BY[el.dataset.char];menuToast(c.name+" 선택");});
+  grid.querySelectorAll("[data-char]").forEach(el=>el.onclick=()=>showCharDetail(el.dataset.char));
 }
-function showGachaResult(res){
-  const el=document.getElementById("charResult");
-  const c=res.char, r=RARITY[c.rarity];
-  el.innerHTML=`<span style="color:${r.color}">${r.name}</span> <b style="color:${c.color}">${c.name}</b> ${res.dup?`<span style="color:var(--gold)">강화! Lv${res.level}</span>`:'<span style="color:#57e0c0">획득!</span>'}`;
-  const bigCol=c.rarity==="mythic"||c.rarity==="epic";
-  if(bigCol){Snd.evolve();vibrate([20,40,20,40,60]);} else {Snd.gold();vibrate(30);}
+// 캐릭터 특성 텍스트
+function charModText(md){
+  const nm={hpMul:"최대체력",dmgMul:"공격력",spdMul:"이동속도",hasteMul:"공격속도",pickupMul:"획득범위",xpMul:"경험치",areaMul:"공격범위"};
+  const out=[];
+  for(const k in md){const v=md[k];
+    if(k==="critAdd")out.push(`치명타 +${Math.round(v*100)}%`);
+    else if(k==="regenAdd")out.push(`초당 회복 +${v}`);
+    else if(k==="lifesteal")out.push("처치 시 체력 회복");
+    else if(k==="armorMul")out.push(`받는 피해 -${Math.round((1-v)*100)}%`);
+    else if(nm[k])out.push(`${nm[k]} ${v>=1?"+":""}${Math.round((v-1)*100)}%`);
+  }
+  return out.length?out.join(" · "):"균형형 (특별 보정 없음)";
+}
+function showCharDetail(id){
+  const c=CHAR_BY[id]; if(!c)return;
+  const owned=charCount(id)>0, lv=charLevel(id), cnt=charCount(id), r=RARITY[c.rarity], nx=charNext(id), sel=META.selChar===id;
+  const box=document.getElementById("detailBox");
+  let body;
+  if(!owned){
+    body=`<div class="ddesc">${c.desc}</div>
+      <div style="font-size:12px;color:var(--muted);background:#0f1424;border:1px solid #26304d;border-radius:10px;padding:10px;line-height:1.5;">
+      특성: ${charModText(c.mods)}${c.startWeapon?`<br>시작 무기: ${WEAPONS[c.startWeapon].name}`:""}</div>
+      <div style="text-align:center;color:var(--muted);font-size:12px;margin-top:12px;">🔒 미보유 · 상자에서 획득하세요</div>`;
+  }else{
+    const bonus=Math.round(0.06*(lv-1)*100);
+    body=`<div class="ddesc">${c.desc}</div>
+      <div style="font-size:12px;color:var(--txt);background:#0f1424;border:1px solid #26304d;border-radius:10px;padding:10px;line-height:1.6;">
+      🎯 특성: <b>${charModText(c.mods)}</b>${c.startWeapon?`<br>🗡 시작 무기: <b>${WEAPONS[c.startWeapon].name}</b>`:""}
+      <br>⬆ 강화(Lv${lv}): 공격·체력 <b>+${bonus}%</b>${nx?` <span style="color:var(--muted)">(다음 Lv ${cnt}/${nx.need}장)</span>`:" <span style='color:var(--gold)'>MAX</span>"}</div>
+      <button class="upbtn" id="charSelBtn" style="background:${sel?'#26304d':'linear-gradient(135deg,var(--acc),#6a5acd)'};color:#fff;">${sel?"✓ 선택됨":"이 캐릭터로 선택"}</button>`;
+  }
+  box.innerHTML=`
+    <div class="dhead"><canvas width="60" height="60" id="dCanvas"></canvas>
+      <div><div class="dt">${c.name} <span style="font-size:12px;font-weight:800;padding:2px 7px;border-radius:6px;background:${r.color}22;color:${r.color}">${r.name}</span></div>
+      <div class="dk">${owned?`Lv${lv} · 보유 ${cnt}장`:"미보유"}</div></div></div>
+    ${body}
+    <button class="dclose" id="dCloseBtn">닫기</button>`;
+  shape(document.getElementById("dCanvas").getContext("2d"),c.shape,30,30,22,c.color,0.3);
+  const sb=document.getElementById("charSelBtn");
+  if(sb)sb.onclick=()=>{META.selChar=id;saveMeta();closeDetail();renderCharModal();renderCharPick();Snd.uiTick();menuToast(c.name+" 선택");};
+  document.getElementById("dCloseBtn").onclick=closeDetail;
+  document.getElementById("detailModal").classList.add("show");Snd.uiTick();
 }
 document.getElementById("charBtn").onclick=openCharModal;
 document.getElementById("charClose").onclick=()=>document.getElementById("charModal").classList.remove("show");
-document.getElementById("gachaN").onclick=()=>{const res=doCharGacha("n");if(res){showGachaResult(res);renderCharModal();renderCharPick();renderMain();}};
-document.getElementById("gachaP").onclick=()=>{const res=doCharGacha("p");if(res){showGachaResult(res);renderCharModal();renderCharPick();renderMain();}};
 /* ---------- 출석 모달 ---------- */
 function openAttend(){document.getElementById("attendModal").classList.add("show");renderAttend();Snd.init();Snd.uiTick();}
 function renderAttend(){
@@ -2111,8 +2138,10 @@ function openChest(type,count){
   META.chests[type]-=num;
   const agg={};                 // 카드id -> 이번에 얻은 장수(합산)
   const newSet=new Set();        // 이번에 '업글 가능'이 된 카드
+  const charAgg={}, charNew=new Set();   // 캐릭터 드랍
   let gemDrop=0;                 // 상자에서 낮은 확률로 나오는 소량 다이아
   const gemChance=((type==="p")?0.22:0.08)+eventFx("chestGemBonus",0);
+  const charChance=(type==="p")?0.40:0.15;   // 상자에서 캐릭터 나올 확률
   for(let c=0;c<num;c++){
     const drawn=[];
     for(let i=0;i<ch.pulls;i++){
@@ -2124,14 +2153,17 @@ function openChest(type,count){
       agg[id]=(agg[id]||0)+1;
       if(r.newElig)newSet.add(id);
     }
+    if(Math.random()<charChance){ const cc=rollChar(CHAR_GACHA[type].weights);
+      const wasOwned=charCount(cc.id)>0; META.chars[cc.id]=(META.chars[cc.id]||0)+1;
+      charAgg[cc.id]=(charAgg[cc.id]||0)+1; if(!wasOwned)charNew.add(cc.id); }
     if(Math.random()<gemChance) gemDrop += (type==="p"? (2+((Math.random()*3)|0)) : (1+((Math.random()*2)|0)));
   }
   if(gemDrop>0)META.gems+=gemDrop;
   saveMeta();saveDex();
   renderChestBar();
-  playChestOpen(ch,agg,num,newSet,gemDrop);
+  playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew);
 }
-function playChestOpen(ch,agg,num,newSet,gemDrop){
+function playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew){
   const modal=document.getElementById("chestOpenModal"),stage=document.getElementById("chestStage"),done=document.getElementById("chestDone");
   modal.classList.add("show"); done.style.display="none";
   // 1단계: 흔들리는 상자
@@ -2149,8 +2181,18 @@ function playChestOpen(ch,agg,num,newSet,gemDrop){
         const ra=RARE_CARDS.includes(a)?0:1, rb=RARE_CARDS.includes(b)?0:1;
         return ra-rb || cardInfo(a).name.localeCompare(cardInfo(b).name);
       });
-      let g=`<div id="chestTitle" style="color:${ch.color}">✦ 획득 카드 (${num}개 개봉) ✦</div>`;
+      let g=`<div id="chestTitle" style="color:${ch.color}">✦ 획득 (${num}개 개봉) ✦</div>`;
       if(gemDrop>0)g+=`<div style="color:var(--gold);font-weight:800;font-size:14px;margin-bottom:8px;">💎 보너스 다이아 +${gemDrop}!</div>`;
+      const cids=Object.keys(charAgg||{});
+      if(cids.length){
+        g+=`<div style="color:#8b7cff;font-weight:800;font-size:13px;margin:2px 0 6px;">🦸 캐릭터 획득!</div><div class="openGrid" style="margin-bottom:12px;">`;
+        cids.forEach(id=>{const c=CHAR_BY[id],r=RARITY[c.rarity];
+          g+=`<div class="opencard" style="border-color:${r.color};box-shadow:0 0 12px ${r.color}55">
+            <canvas width="54" height="54" data-shape="${c.shape}" data-color="${c.color}"></canvas>
+            <div class="nm" style="color:${r.color}">${c.name}</div>
+            <div class="cnt">${charNew.has(id)?'<span style="color:#57e0c0">NEW!</span>':('강화 ×'+charAgg[id])}</div></div>`;});
+        g+=`</div>`;
+      }
       g+=`<div class="openGrid">`;
       ids.forEach((id,i)=>{const info=cardInfo(id),rare=RARE_CARDS.includes(id);
         g+=`<div class="opencard ${info.kind==="su"?"sup":rare?"rare":""}" style="animation-delay:${Math.min(i*0.05,1.2)}s">
