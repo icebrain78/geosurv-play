@@ -1146,6 +1146,7 @@ function stopEvent(){ ACTIVE_EVENT=null; saveEvent(); }
    무기 10종 / 진화 10종
    ================================================================ */
 const MAXLV=8, WEAPON_SLOTS=4;   // 무기 슬롯 상한(가득 차면 보유 무기 강화만 등장)
+const PASSIVE_SLOTS=4;           // 패시브 슬롯 상한(가득 차면 보유 패시브 강화만 등장)
 const WEAPONS={
   tri_shot:{id:"tri_shot",name:"관통탄",shape:"triangle",color:"#8b7cff",desc:"가까운 적에게 관통 삼각탄",fuseWith:"haste",evo:"hex_saw"},
   sq_orbit:{id:"sq_orbit",name:"궤도 큐브",shape:"square",color:"#57e0c0",desc:"몸 주위를 도는 네모 타격",fuseWith:"amp",evo:"star_burst"},
@@ -1382,9 +1383,10 @@ function renderChoiceOverlay(){
   const ev=currentEv; if(!ev)return;
   document.getElementById("ovTitle").textContent=ev.title;
   document.getElementById("ovTitle").className=ev.fuse?"fuse":"";
-  const full=G.weapons.length>=WEAPON_SLOTS;
+  const full=G.weapons.length>=WEAPON_SLOTS, pCnt=Object.keys(G.passives).length, pFull=pCnt>=PASSIVE_SLOTS;
   document.getElementById("ovSub").innerHTML=ev.sub+
-    ` <span style="color:${full?"var(--gold)":"var(--muted)"};font-size:11px;">· 무기 ${G.weapons.length}/${WEAPON_SLOTS}${full?" (가득참 — 강화만)":""}</span>`;
+    ` <span style="color:${full?"var(--gold)":"var(--muted)"};font-size:11px;">· 🗡${G.weapons.length}/${WEAPON_SLOTS}</span>`+
+    ` <span style="color:${pFull?"var(--gold)":"var(--muted)"};font-size:11px;">· ✦${pCnt}/${PASSIVE_SLOTS}</span>`;
   overlay.classList.add("show");
   cardsEl.innerHTML="";
   ev.cards.forEach(o=>{
@@ -1453,14 +1455,32 @@ function buildSlotHTML(){
     }
   }
   h+=`</div>`;
-  // 패시브 / 융합
+  // 패시브 슬롯 (무기와 동일한 칸 UI)
   const pids=Object.keys(G.passives), sids=Object.keys(G.supers);
-  if(pids.length||sids.length){
-    h+=`<div class="slotlbl" style="margin-top:8px;">✦ 패시브</div><div class="pchips">`;
-    pids.forEach(id=>{const p=PASSIVES[id];
-      h+=`<div class="wchip"><canvas width="26" height="26" data-shape="${p.shape}" data-color="${p.color}"></canvas><b>${G.passives[id]}</b></div>`;});
+  const pFull=pids.length>=PASSIVE_SLOTS;
+  h+=`<div class="slotlbl" style="margin-top:9px;">✦ 패시브 슬롯 <b style="color:${pFull?"var(--gold)":"var(--xp)"}">${pids.length}/${PASSIVE_SLOTS}</b>`
+    +(pFull?` <span style="color:var(--gold)">· 가득 참 (강화만 가능)</span>`:` <span style="color:var(--muted)">· 빈 칸에 새 패시브 획득 가능</span>`)+`</div>`;
+  h+=`<div class="slotgrid">`;
+  for(let i=0;i<PASSIVE_SLOTS;i++){
+    const id=pids[i];
+    if(id){
+      const p=PASSIVES[id],lvv=G.passives[id],maxed=lvv>=p.max;
+      h+=`<div class="slot ${maxed?"maxed":""}">
+        <canvas width="46" height="46" data-shape="${p.shape}" data-color="${p.color}"></canvas>
+        <div class="sname">${p.name}</div>
+        <div class="slv">${maxed?"MAX":"Lv"+lvv}</div>
+        <div class="sbar"><i style="width:${lvv/p.max*100}%;background:${maxed?"var(--gold)":"var(--acc)"}"></i></div>
+      </div>`;
+    }else{
+      h+=`<div class="slot empty"><div class="plus">+</div><div class="sname">빈 슬롯</div></div>`;
+    }
+  }
+  h+=`</div>`;
+  // 융합(슬롯 외 특수)
+  if(sids.length){
+    h+=`<div class="slotlbl" style="margin-top:9px;">💠 패시브 융합</div><div class="pchips">`;
     sids.forEach(id=>{const s=SUPERS[id];
-      h+=`<div class="wchip super"><canvas width="26" height="26" data-shape="${s.shape}" data-color="${s.color}"></canvas><b>✦</b></div>`;});
+      h+=`<div class="wchip super"><canvas width="26" height="26" data-shape="${s.shape}" data-color="${s.color}"></canvas><b>${s.name}</b></div>`;});
     h+=`</div>`;
   }
   return h;
@@ -1508,7 +1528,13 @@ function normalChoices(n,extraPool){
   const opts=[];
   for(const w of G.weapons){if(!w.ref.evolved&&w.lv<MAXLV)opts.push({kind:"wup",weapon:w.id,w});}
   if(G.weapons.length<WEAPON_SLOTS){for(const id in WEAPONS){if(!getWeapon(id))opts.push({kind:"wnew",weapon:id});}}
-  if(!G.noPassives){for(const id in PASSIVES){const p=PASSIVES[id];if((G.passives[id]||0)<p.max)opts.push({kind:"pas",pid:id});}}
+  if(!G.noPassives){
+    const pFull=Object.keys(G.passives).length>=PASSIVE_SLOTS;
+    for(const id in PASSIVES){const p=PASSIVES[id],cur=G.passives[id]||0;
+      if(cur>=p.max)continue;                 // 만렙
+      if(cur===0&&pFull)continue;             // 슬롯 가득 → 신규 패시브 제외
+      opts.push({kind:"pas",pid:id});}
+  }
   if(extraPool)opts.push(...extraPool); // 진화 카드도 일반 풀에 섞임
   for(let i=opts.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[opts[i],opts[j]]=[opts[j],opts[i]];}
   return opts.slice(0,n).map(decorate);
