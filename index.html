@@ -106,8 +106,26 @@
   .ovact.heal{background:linear-gradient(135deg,#2c7a63,#1f5a49);color:#d9ffe9;}
   .ovact.reroll{background:linear-gradient(135deg,#6a5acd,#4b3fb0);color:#fff;}
   .ovact.dis{opacity:.42;cursor:default;}
-  #ovInv{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:14px;max-width:380px;
-    padding-top:12px;border-top:1px dashed #26304d;}
+  /* 무기 슬롯 그리드 */
+  .slotlbl{font-size:11px;font-weight:800;color:var(--muted);text-align:left;margin-bottom:6px;}
+  .slotgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;}
+  .slot{background:#0f1424;border:1px solid #26304d;border-radius:11px;padding:7px 3px;text-align:center;min-width:0;}
+  .slot canvas{width:34px;height:34px;}
+  .slot .sname{font-size:9px;font-weight:700;color:var(--txt);margin-top:2px;line-height:1.1;height:21px;overflow:hidden;}
+  .slot .slv{font-size:9px;font-weight:800;color:var(--xp);margin-top:1px;}
+  .slot .sbar{height:3px;background:#26304d;border-radius:2px;margin-top:3px;overflow:hidden;}
+  .slot .sbar>i{display:block;height:100%;}
+  .slot.evo{border-color:var(--gold);box-shadow:0 0 8px rgba(255,207,92,.35);}
+  .slot.evo .slv{color:var(--gold);}
+  .slot.maxed .slv{color:var(--gold);}
+  .slot.empty{border-style:dashed;border-color:#33406a;opacity:.75;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .slot.empty .plus{font-size:22px;font-weight:900;color:#3d465f;line-height:1.1;}
+  .slot.empty .sname{color:var(--muted);height:auto;}
+  .pchips{display:flex;gap:4px;flex-wrap:wrap;}
+  .pchips .wchip canvas{width:16px;height:16px;}
+  #pauseBuild{margin-bottom:14px;}
+  #ovInv{display:block;margin-top:12px;width:100%;max-width:380px;
+    padding-top:10px;border-top:1px dashed #26304d;}
   #ovInvLbl{font-size:10.5px;color:var(--muted);width:100%;text-align:center;margin-bottom:2px;}
 
   /* ---- Screens ---- */
@@ -462,6 +480,7 @@
   <div class="box">
     <h2>⚙️ 환경설정</h2>
     <div class="paused-note" id="pausedNote">게임이 일시정지되었습니다</div>
+    <div id="pauseBuild"></div>
     <div class="cfgrow">
       <label><span>🔊 효과음</span><span id="sfxVal">70%</span></label>
       <input type="range" id="sfxSlider" min="0" max="100" value="70">
@@ -1405,16 +1424,48 @@ function renderOvActions(){
   }
   el.appendChild(rr);
 }
+/* 무기 슬롯을 칸으로 시각화 — 채워진 칸/빈 칸이 한눈에 */
+function buildSlotHTML(){
+  const full=G.weapons.length>=WEAPON_SLOTS;
+  let h=`<div class="slotlbl">🗡 무기 슬롯 <b style="color:${full?"var(--gold)":"var(--xp)"}">${G.weapons.length}/${WEAPON_SLOTS}</b>`
+    +(full?` <span style="color:var(--gold)">· 가득 참 (강화만 가능)</span>`:` <span style="color:var(--muted)">· 빈 칸에 새 무기 획득 가능</span>`)+`</div>`;
+  h+=`<div class="slotgrid">`;
+  for(let i=0;i<WEAPON_SLOTS;i++){
+    const w=G.weapons[i];
+    if(w){
+      const maxed=!w.ref.evolved&&w.lv>=MAXLV;
+      h+=`<div class="slot ${w.ref.evolved?"evo":""} ${maxed?"maxed":""}">
+        <canvas width="46" height="46" data-shape="${w.ref.shape}" data-color="${w.ref.color}"></canvas>
+        <div class="sname">${w.ref.name}</div>
+        <div class="slv">${w.ref.evolved?"★진화 Lv"+w.lv:(maxed?"MAX":"Lv"+w.lv)}</div>
+        <div class="sbar"><i style="width:${w.ref.evolved?100:Math.min(100,w.lv/MAXLV*100)}%;background:${w.ref.evolved?"var(--gold)":"var(--xp)"}"></i></div>
+      </div>`;
+    }else{
+      h+=`<div class="slot empty"><div class="plus">+</div><div class="sname">빈 슬롯</div></div>`;
+    }
+  }
+  h+=`</div>`;
+  // 패시브 / 융합
+  const pids=Object.keys(G.passives), sids=Object.keys(G.supers);
+  if(pids.length||sids.length){
+    h+=`<div class="slotlbl" style="margin-top:8px;">✦ 패시브</div><div class="pchips">`;
+    pids.forEach(id=>{const p=PASSIVES[id];
+      h+=`<div class="wchip"><canvas width="26" height="26" data-shape="${p.shape}" data-color="${p.color}"></canvas><b>${G.passives[id]}</b></div>`;});
+    sids.forEach(id=>{const s=SUPERS[id];
+      h+=`<div class="wchip super"><canvas width="26" height="26" data-shape="${s.shape}" data-color="${s.color}"></canvas><b>✦</b></div>`;});
+    h+=`</div>`;
+  }
+  return h;
+}
+function paintSlotCanvases(root){
+  root.querySelectorAll("canvas[data-shape]").forEach(c=>{
+    const g=c.getContext("2d"),half=c.width/2;
+    shape(g,c.dataset.shape,half,half,half*0.72,c.dataset.color,0.3);});
+}
 function renderOvInv(){
   const inv=document.getElementById("ovInv");
-  inv.innerHTML='<div id="ovInvLbl">내 빌드</div>';
-  for(const w of G.weapons){const c=document.createElement("div");c.className="wchip"+(w.ref.evolved?" evo":"");
-    c.appendChild(iconCanvas(w.ref.shape,w.ref.color,0.3));
-    const b=document.createElement("b");b.textContent=(w.ref.evolved?"★":"L")+w.lv;c.appendChild(b);inv.appendChild(c);}
-  for(const id in G.passives){const p=PASSIVES[id];const c=document.createElement("div");c.className="wchip";
-    c.appendChild(iconCanvas(p.shape,p.color,0.3));const b=document.createElement("b");b.textContent=G.passives[id];c.appendChild(b);inv.appendChild(c);}
-  for(const id in G.supers){const s=SUPERS[id];const c=document.createElement("div");c.className="wchip super";
-    c.appendChild(iconCanvas(s.shape,s.color,0.3));const b=document.createElement("b");b.textContent="✦";c.appendChild(b);inv.appendChild(c);}
+  inv.innerHTML=buildSlotHTML();
+  paintSlotCanvases(inv);
 }
 
 /* ---------- 진화/융합 후보 ---------- */
@@ -2113,6 +2164,8 @@ const cfgModal=document.getElementById("cfgModal");
 function toggleCfg(){if(cfgModal.classList.contains("show"))closeCfg();else openCfg();}
 function openCfg(){menuPause=true;
   document.getElementById("pausedNote").style.display=running?"block":"none";
+  const pb=document.getElementById("pauseBuild");
+  if(pb){ if(running&&G){pb.style.display="block";pb.innerHTML=buildSlotHTML();paintSlotCanvases(pb);} else {pb.style.display="none";pb.innerHTML="";} }
   cfgModal.classList.add("show");Snd.uiTick();}
 function closeCfg(){cfgModal.classList.remove("show");menuPause=false;lastT=performance.now();}
 document.getElementById("cfgBtn").onclick=openCfg;
