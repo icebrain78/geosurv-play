@@ -401,6 +401,16 @@
   .cosrow .cl{font-size:10.5px;color:var(--muted);font-weight:800;flex:0 0 46px;text-align:left;}
   .cosrow .cchips{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
   .cosrow .mapchip{padding:5px 10px;font-size:11px;}
+  /* 스킨 상점 */
+  .skinrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:7px;}
+  .skincard{background:#0f1424;border:2px solid #26304d;border-radius:12px;padding:9px 4px;text-align:center;cursor:pointer;}
+  .skincard:active{transform:scale(.97);}
+  .skincard canvas{width:38px;height:38px;}
+  .skincard .sn{font-size:11px;font-weight:800;margin-top:3px;}
+  .skincard .sp{font-size:10px;font-weight:800;color:var(--gold);margin-top:2px;}
+  .skincard.own .sp{color:var(--muted);}
+  .skincard.sel{box-shadow:0 0 12px rgba(139,124,255,.6);}
+  .skincard.sel .sp{color:var(--xp);}
   .dbox.celebrate{animation:celebr .55s ease-out;}
   @keyframes celebr{0%{transform:scale(1);}20%{transform:scale(1.05);box-shadow:0 0 44px rgba(255,207,92,.65),0 0 20px rgba(139,124,255,.5);}100%{transform:scale(1);}}
   .upburst{position:absolute;left:50%;top:50%;pointer-events:none;z-index:60;}
@@ -956,10 +966,15 @@ const PASS_MISSIONS=[
 const PASS_MAX=30;
 /* ---- 패스 독점 콘텐츠: 스킨 / 칭호 / 시즌 한정 캐릭터 / 전용 맵 ---- */
 const SKINS={
-  s_neon:  {id:"s_neon",  name:"네온",     color:"#00ffe0", trail:"#00ffe0", desc:"형광 청록 광채"},
-  s_ember: {id:"s_ember", name:"잔불",     color:"#ff6a2a", trail:"#ffb36a", desc:"불꽃 잔상"},
-  s_void:  {id:"s_void",  name:"공허",     color:"#b06bff", trail:"#7a3aff", desc:"보랏빛 심연"},
-  s_gold:  {id:"s_gold",  name:"황금",     color:"#ffd24a", trail:"#fff2b0", desc:"시즌 최종 보상"},
+  // gem: 상점 구매 가격(없으면 패스 전용)
+  s_neon:  {id:"s_neon",  name:"네온",     color:"#00ffe0", trail:"#00ffe0", desc:"형광 청록 광채", gem:60},
+  s_ember: {id:"s_ember", name:"잔불",     color:"#ff6a2a", trail:"#ffb36a", desc:"불꽃 잔상",     gem:60},
+  s_void:  {id:"s_void",  name:"공허",     color:"#b06bff", trail:"#7a3aff", desc:"보랏빛 심연",   gem:90},
+  s_gold:  {id:"s_gold",  name:"황금",     color:"#ffd24a", trail:"#fff2b0", desc:"시즌 최종 보상", gem:150},
+  s_ice:   {id:"s_ice",   name:"빙결",     color:"#9fd8ff", trail:"#e6f6ff", desc:"차가운 서리",   gem:60},
+  s_toxic: {id:"s_toxic", name:"맹독",     color:"#9dff4a", trail:"#d7ff9a", desc:"형광 초록",     gem:90},
+  s_rose:  {id:"s_rose",  name:"장미",     color:"#ff5a8a", trail:"#ffc2d6", desc:"붉은 장미빛",   gem:60},
+  s_mono:  {id:"s_mono",  name:"흑백",     color:"#e8ecf7", trail:"#8a94b0", desc:"미니멀 모노톤", gem:40},
 };
 const TITLES={
   t_rookie:{id:"t_rookie",name:"신참",     color:"#8a94b0"},
@@ -2202,7 +2217,7 @@ function renderCosmetics(){
   const el=document.getElementById("cosmetics"); if(!el)return;
   const skins=Object.values(SKINS).filter(s=>ownSkin(s.id));
   const titles=Object.values(TITLES).filter(t=>ownTitle(t.id));
-  if(!skins.length&&!titles.length){el.innerHTML=`<div style="font-size:11px;color:var(--muted);">시즌 패스에서 스킨·칭호를 획득하세요</div>`;return;}
+  if(!skins.length&&!titles.length){el.innerHTML=`<div style="font-size:11px;color:var(--muted);">🎨 스킨은 <b style="color:var(--acc)">상점</b>에서 구매 · 칭호는 <b style="color:var(--gold)">시즌 패스</b>에서 획득</div>`;return;}
   let h="";
   if(skins.length){h+=`<div class="cosrow"><span class="cl">🎨 스킨</span>
     <div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-skin="">기본</div>`+
@@ -2749,6 +2764,15 @@ function renderShop(){
     <div class="buycard" id="buyCard1"><canvas width="32" height="32" data-shape="diamond" data-color="#8b7cff"></canvas>
       <div><div class="nm">랜덤 카드 1장</div><div class="ds">일반 카드</div><div class="pc">◆ 50</div></div></div>
   </div></div>`;
+  // 4.5) 스킨
+  const skinList=Object.values(SKINS).filter(sk=>sk.gem);
+  s+=`<div class="shopsec"><div class="sectitle">🎨 스킨 <span style="font-size:10px;color:var(--muted);font-weight:600;">캐릭터 외형 변경</span></div><div class="skinrow">`;
+  skinList.forEach(sk=>{const own=ownSkin(sk.id),sel=META.selSkin===sk.id;
+    s+=`<div class="skincard ${own?"own":""} ${sel?"sel":""}" data-skin-buy="${sk.id}" style="border-color:${sk.color}${own?"":"55"}">
+      <canvas width="44" height="44" data-shape="diamond" data-color="${sk.color}"></canvas>
+      <div class="sn" style="color:${sk.color}">${sk.name}</div>
+      <div class="sp">${own?(sel?"✓ 사용중":"탭하여 장착"):("💎 "+sk.gem)}</div></div>`;});
+  s+=`</div></div>`;
   // 5) 영구 강화
   s+=`<div class="shopsec"><div class="sectitle">⚡ 영구 강화</div><div class="shop" id="shop"></div></div>`;
   el.innerHTML=s;
@@ -2761,6 +2785,7 @@ function renderShop(){
   document.getElementById("buyChestN").onclick=()=>buyChest("n");
   document.getElementById("buyChestP").onclick=()=>buyChest("p");
   document.getElementById("buyCard1").onclick=()=>buyCardPack();
+  el.querySelectorAll("[data-skin-buy]").forEach(b=>b.onclick=()=>buyOrEquipSkin(b.dataset.skinBuy));
   // 영구강화 카드
   const su=document.getElementById("shop");
   META_UPS.forEach(u=>{const lv=metaLv(u.id),maxed=lv>=u.max,cost=u.cost(lv);
@@ -2779,6 +2804,20 @@ function buyChest(type){const ch=CHESTS[type];
   else{if(META.gems<ch.gem){menuToast("보석이 부족합니다");return;}META.gems-=ch.gem;}
   META.chests[type]=(META.chests[type]||0)+1;saveMeta();Snd.gold();
   menuToast(`${ch.name} 획득! 수집함에서 열어보세요`);renderShop();renderMain();}
+function buyOrEquipSkin(id){
+  const sk=SKINS[id]; if(!sk)return;
+  if(ownSkin(id)){                       // 보유 → 장착/해제 토글
+    META.selSkin=(META.selSkin===id)?null:id; saveMeta(); Snd.uiTick();
+    menuToast(META.selSkin?(sk.name+" 장착"):"기본 외형");
+    renderShop(); renderMain(); return;
+  }
+  if(!sk.gem){menuToast("시즌 패스에서만 획득 가능합니다");return;}
+  if(META.gems<sk.gem){menuToast("보석이 부족합니다 (💎"+sk.gem+" 필요)");return;}
+  META.gems-=sk.gem; META.skins=META.skins||{}; META.skins[id]=1; META.selSkin=id;
+  saveMeta(); Snd.evolve(); vibrate([20,40,20]);
+  menuToast("🎨 "+sk.name+" 스킨 획득 & 장착!");
+  renderShop(); renderMain();
+}
 function buyCardPack(){if(META.gold<50){menuToast("코어가 부족합니다");return;}
   META.gold-=50;const r=grantCard(pullCard(0.05));saveMeta();saveDex();Snd.gold();
   const info=cardInfo(r.id);menuToast(`🃏 ${info.name} 카드 획득!${r.levelUp?` (Lv${r.level}↑)`:""}`);renderShop();renderMain();}
