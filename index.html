@@ -354,6 +354,27 @@
   .adevent .en{font-size:12.5px;font-weight:800;} .adevent .ed{font-size:10px;color:var(--muted);margin:2px 0 6px;}
   .adevent .durs{display:flex;gap:5px;} .adevent .durs button{flex:1;padding:6px 0;border:none;border-radius:8px;background:#26304d;color:var(--txt);font-size:11px;font-weight:800;cursor:pointer;}
   .adevent.on{border-color:var(--gold);} .adevent .durs button.stop{background:var(--danger);color:#3a0010;}
+  /* 업적 */
+  .achrow{display:flex;align-items:center;gap:10px;background:#141a2b;border:1px solid #26304d;border-radius:11px;
+    padding:9px 11px;margin-bottom:6px;text-align:left;}
+  .achrow.done{border-color:#2c7a63;background:linear-gradient(160deg,#0f2e26,#16243a);}
+  .achrow .ai{font-size:17px;flex:0 0 auto;}
+  .achrow .ab{flex:1;min-width:0;} .achrow .an{font-size:13px;font-weight:800;} .achrow .ad{font-size:10.5px;color:var(--muted);margin-top:1px;}
+  .achrow .ar{font-size:10.5px;font-weight:800;color:var(--gold);flex:0 0 auto;text-align:right;}
+  .achrow.done .ar{color:#57e0c0;}
+  /* 아르카나 */
+  #arcanaModal{position:fixed;inset:0;z-index:57;background:rgba(4,6,12,.9);backdrop-filter:blur(3px);
+    display:none;align-items:center;justify-content:center;padding:20px;}
+  #arcanaModal.show{display:flex;}
+  #arcanaCards{display:flex;flex-direction:column;gap:9px;margin-bottom:6px;}
+  .arccard{display:flex;align-items:center;gap:13px;padding:13px;border-radius:14px;cursor:pointer;
+    background:linear-gradient(160deg,#2a2410,#1b2338);border:1px solid var(--gold);transition:transform .06s;}
+  .arccard:active{transform:scale(.98);}
+  .arccard .arci{font-size:26px;color:var(--gold);flex:0 0 32px;text-align:center;}
+  .arccard .arcn{font-size:14.5px;font-weight:800;color:var(--gold);}
+  .arccard .arcd{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4;}
+  /* 인게임 난이도/아르카나 표시 */
+  #runInfo{font-size:10px;font-weight:800;color:var(--muted);text-shadow:0 1px 3px #000;margin-top:3px;}
   .dbox.celebrate{animation:celebr .55s ease-out;}
   @keyframes celebr{0%{transform:scale(1);}20%{transform:scale(1.05);box-shadow:0 0 44px rgba(255,207,92,.65),0 0 20px rgba(139,124,255,.5);}100%{transform:scale(1);}}
   .upburst{position:absolute;left:50%;top:50%;pointer-events:none;z-index:60;}
@@ -388,6 +409,7 @@
     <span class="kills">☠ <span id="killVal">0</span></span>
   </div>
   <div id="bossBar"><div class="lbl">BOSS</div><div class="bar"><i id="bossFill"></i></div></div>
+  <div id="runInfo"></div>
   <div id="weaponRow"></div>
 </div>
 <button id="cfgBtn">⚙️</button>
@@ -460,6 +482,14 @@
   <button class="dclose" id="attendClose">닫기</button>
 </div></div>
 
+<!-- 아르카나 선택 (런 시작) -->
+<div id="arcanaModal"><div class="dbox wide">
+  <h2 style="margin:0 0 4px;font-size:19px;text-align:center;color:var(--gold);">🎴 아르카나</h2>
+  <p style="font-size:11.5px;color:var(--muted);text-align:center;margin:0 0 14px;">이번 판 전체에 적용될 규칙을 하나 선택하세요</p>
+  <div id="arcanaCards"></div>
+  <button class="dclose" id="arcanaSkip">건너뛰기 (규칙 없음)</button>
+</div></div>
+
 <!-- 관리자 패널 (제목 5번 탭 → PIN) -->
 <div id="adminModal"><div class="dbox wide">
   <h2 style="margin:0 0 8px;font-size:19px;text-align:center;">🔧 관리자</h2>
@@ -509,6 +539,7 @@
     <div class="bestline" id="bestLine"></div>
     <div id="charPick"></div>
     <div id="mapPick"></div>
+    <div id="diffPick"></div>
     <div class="mainbtns">
       <button id="charBtn">🦸 캐릭터</button>
       <button id="attendBtn">📅 출석체크</button>
@@ -544,6 +575,11 @@
     <div id="openResult"></div>
     <div id="collectionBody" style="width:100%;max-width:420px;"></div>
   </div>
+  <!-- 업적 -->
+  <div class="scontent top hide" id="tabAch">
+    <h3>🏅 업적</h3>
+    <div id="achBody" style="width:100%;max-width:420px;"></div>
+  </div>
   <!-- 설정 -->
   <div class="scontent top hide" id="tabCfg">
     <h3>⚙️ 환경설정</h3>
@@ -565,6 +601,7 @@
     <button data-tab="tabRank"><span class="ic">🏆</span>랭크</button>
     <button data-tab="tabShop"><span class="ic">🛒</span>상점</button>
     <button data-tab="tabCollection"><span class="ic">📖</span>수집</button>
+    <button data-tab="tabAch"><span class="ic">🏅</span>업적</button>
     <button data-tab="tabCfg"><span class="ic">⚙️</span>설정</button>
   </nav>
 </div>
@@ -732,7 +769,8 @@ function loadAll(){
   try{const r=localStorage.getItem(DEX_KEY);if(r)DEX=Object.assign({en:{},we:{},ev:{},su:{}},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(USER_KEY);if(r)USER=Object.assign({name:null},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(ATT_KEY);if(r)ATTEND=Object.assign({claimed:{}},JSON.parse(r));}catch(e){}
-  loadEvent();
+  loadEvent(); loadAch();
+  if(META.selDiff==null)META.selDiff=0;
 }
 function saveAttend(){try{localStorage.setItem(ATT_KEY,JSON.stringify(ATTEND));}catch(e){}}
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(META));}catch(e){}}
@@ -819,6 +857,79 @@ function claimAttend(){
   if(rw.coins)META.gold+=rw.coins; if(rw.gems)META.gems+=rw.gems;
   ATTEND.claimed[ds]=true; saveAttend(); saveMeta(); return rw;
 }
+
+/* ================================================================
+   난이도 등급 (위험도) — 높을수록 적 강화 + 보상 배율↑
+   ================================================================ */
+const DIFFS=[
+  {id:0,name:"보통",   color:"#57e0c0", hpMul:1.0, spdMul:1.00, dmgMul:1.0, spawnMul:1.0, reward:1.0},
+  {id:1,name:"위험",   color:"#ffcf5c", hpMul:1.4, spdMul:1.06, dmgMul:1.2, spawnMul:1.15, reward:1.35},
+  {id:2,name:"치명",   color:"#ff9f43", hpMul:2.0, spdMul:1.12, dmgMul:1.5, spawnMul:1.3, reward:1.8},
+  {id:3,name:"지옥",   color:"#ff5a6e", hpMul:3.0, spdMul:1.2,  dmgMul:1.9, spawnMul:1.5, reward:2.5},
+];
+
+/* ================================================================
+   아르카나 — 런 시작 시 3장 중 1장 선택, 판 전체 규칙 변경
+   ================================================================ */
+const ARCANA=[
+  {id:"a_glass", name:"유리의 서약", icon:"◆", desc:"공격력 +60%, 최대체력 -35%", fx:{dmgMul:1.6,hpMul:0.65}},
+  {id:"a_swarm", name:"군집의 탑",   icon:"▲", desc:"적 +40% 몰려오지만 경험치 +60%", fx:{spawnMul:1.4,xpMul:1.6}},
+  {id:"a_slowmo",name:"느린 시간",   icon:"●", desc:"적 이동속도 -25%, 내 공격속도 -15%", fx:{enemySpdMul:0.75,hasteMul:0.85}},
+  {id:"a_giant", name:"거인의 심장", icon:"⬢", desc:"최대체력 +80%, 이동속도 -12%", fx:{hpMul:1.8,spdMul:0.88}},
+  {id:"a_blitz", name:"질풍의 인장", icon:"⚡", desc:"공격속도 +35%, 공격력 -12%", fx:{hasteMul:1.35,dmgMul:0.88}},
+  {id:"a_greed", name:"탐욕의 문양", icon:"★", desc:"코어 획득 2배, 받는 피해 +25%", fx:{goldMul:2,dmgTakenMul:1.25}},
+  {id:"a_focus", name:"집중의 원",   icon:"◎", desc:"치명타 +25%, 획득 범위 -30%", fx:{critAdd:0.25,pickupMul:0.7}},
+  {id:"a_growth",name:"성장의 나선", icon:"✦", desc:"경험치 +45%, 시작 체력 절반", fx:{xpMul:1.45,startHalfHp:1}},
+];
+const ARCANA_BY={}; ARCANA.forEach(a=>ARCANA_BY[a.id]=a);
+function rollArcana(n){const pool=[...ARCANA];const out=[];
+  for(let i=0;i<n&&pool.length;i++){const k=(Math.random()*pool.length)|0;out.push(pool.splice(k,1)[0]);}
+  return out;}
+function arcFx(key,def){const a=G&&G.arcana; return (a&&a.fx[key]!=null)?a.fx[key]:def;}
+
+/* ================================================================
+   업적 / 해금
+   ================================================================ */
+const ACH_KEY="geoSurv.ach.v1";
+let ACH={done:{}};
+function loadAch(){try{const r=localStorage.getItem(ACH_KEY);if(r)ACH=Object.assign({done:{}},JSON.parse(r));}catch(e){}}
+function saveAch(){try{localStorage.setItem(ACH_KEY,JSON.stringify(ACH));}catch(e){}}
+const ACHIEVEMENTS=[
+  {id:"kill100",  name:"첫 사냥",     desc:"한 판에서 100마리 처치",     chk:g=>g.kills>=100,        rw:{gold:200}},
+  {id:"kill500",  name:"학살자",      desc:"한 판에서 500마리 처치",     chk:g=>g.kills>=500,        rw:{gold:600,gems:5}},
+  {id:"kill1500", name:"도형 파괴자", desc:"한 판에서 1500마리 처치",    chk:g=>g.kills>=1500,       rw:{gems:20}},
+  {id:"time3",    name:"생존자",      desc:"3분 생존",                   chk:g=>g.t>=180,            rw:{gold:300}},
+  {id:"time7",    name:"불굴",        desc:"7분 생존",                   chk:g=>g.t>=420,            rw:{gold:800,gems:8}},
+  {id:"time12",   name:"불멸",        desc:"12분 생존",                  chk:g=>g.t>=720,            rw:{gems:30,chestP:1}},
+  {id:"lv15",     name:"성장",        desc:"레벨 15 도달",               chk:g=>g.level>=15,         rw:{gold:400}},
+  {id:"lv25",     name:"초월",        desc:"레벨 25 도달",               chk:g=>g.level>=25,         rw:{gems:15}},
+  {id:"evo1",     name:"첫 합성",     desc:"진화 무기 1개 완성",         chk:g=>g.weapons.some(w=>w.ref.evolved), rw:{gold:300,chestN:1}},
+  {id:"evo3",     name:"합성 장인",   desc:"한 판에 진화 무기 3개",      chk:g=>g.weapons.filter(w=>w.ref.evolved).length>=3, rw:{gems:20,chestP:1}},
+  {id:"super1",   name:"융합의 시작", desc:"패시브 융합 1개 완성",       chk:g=>Object.keys(g.supers).length>=1, rw:{gold:400}},
+  {id:"boss1",    name:"보스 사냥꾼", desc:"보스 처치",                  chk:g=>g.bossKills>=1,      rw:{gold:500,chestN:1}},
+  {id:"boss5",    name:"보스 학살자", desc:"한 판에 보스 5마리 처치",    chk:g=>g.bossKills>=5,      rw:{gems:25}},
+  {id:"combo200", name:"연쇄 폭발",   desc:"200 콤보 달성",              chk:g=>g.maxCombo>=200,     rw:{gold:400}},
+  {id:"combo1000",name:"콤보 마스터", desc:"1000 콤보 달성",             chk:g=>g.maxCombo>=1000,    rw:{gems:20}},
+  {id:"hard1",    name:"위험 감수",   desc:"'위험' 이상 난이도 클리어(3분)", chk:g=>g.diff>=1&&g.t>=180, rw:{gems:10}},
+  {id:"hard3",    name:"지옥의 문",   desc:"'지옥' 난이도에서 5분 생존", chk:g=>g.diff>=3&&g.t>=300, rw:{gems:50,chestP:2}},
+  {id:"noHit60",  name:"무결점",      desc:"1분간 피격 없이 생존",       chk:g=>g.noHitBest>=60,     rw:{gems:12}},
+];
+function checkAchievements(g){
+  const got=[];
+  for(const a of ACHIEVEMENTS){
+    if(ACH.done[a.id])continue;
+    let ok=false; try{ok=a.chk(g);}catch(e){}
+    if(ok){ACH.done[a.id]=1;got.push(a);
+      if(a.rw.gold)META.gold+=a.rw.gold;
+      if(a.rw.gems)META.gems+=a.rw.gems;
+      if(a.rw.chestN)META.chests.n=(META.chests.n||0)+a.rw.chestN;
+      if(a.rw.chestP)META.chests.p=(META.chests.p||0)+a.rw.chestP;}
+  }
+  if(got.length){saveAch();saveMeta();}
+  return got;
+}
+function achRewardText(rw){const p=[];if(rw.gold)p.push("◆"+rw.gold);if(rw.gems)p.push("💎"+rw.gems);
+  if(rw.chestN)p.push("일반상자×"+rw.chestN);if(rw.chestP)p.push("고급상자×"+rw.chestP);return p.join(" · ");}
 
 /* ================================================================
    이벤트 시스템 (관리자가 개설/종료 · 로컬. 실제 전체유저는 서버 필요)
@@ -937,8 +1048,19 @@ function newGame(opts){
     xp:0,xpNext:5,level:1,xpMult:1,
     spawnAcc:0,eliteTimer:16,boss:null,nextBossAt:90,hurtFx:0,camShake:0,
     daily:null,noPassives:false,spawnMult:1,enemySpdMult:1,goldMult:1,dmgTakenMult:1,
+    diff:0,diffRef:DIFFS[0],arcana:null,bossKills:0,noHitT:0,noHitBest:0,enemyHpMul:1,enemyDmgMul:1,
   };
   const p=G.player;
+  // 난이도 + 아르카나
+  G.diff=Math.max(0,Math.min(DIFFS.length-1,opts.diff!=null?opts.diff:(META.selDiff||0)));
+  G.diffRef=DIFFS[G.diff];
+  G.arcana=opts.arcana||null;
+  G.enemyHpMul=G.diffRef.hpMul;
+  G.enemyDmgMul=G.diffRef.dmgMul;
+  G.spawnMult=G.diffRef.spawnMul*arcFx("spawnMul",1);
+  G.enemySpdMult=G.diffRef.spdMul*arcFx("enemySpdMul",1);
+  G.goldMult=G.diffRef.reward*arcFx("goldMul",1);
+  G.dmgTakenMult=arcFx("dmgTakenMul",1);
   // 맵
   G.map=MAP_BY[META.selMap]||MAPS[0]; G.arena=(G.map.size)/2; G.obstacles=G.map.obstacles||[];
   // 캐릭터 특성(레벨 스케일 포함)
@@ -956,11 +1078,11 @@ function newGame(opts){
       if(m.id==="no_pass")G.noPassives=true;
       else if(m.id==="slow")p.spdMult*=0.9;
       else if(m.id==="glass")p.maxhp*=0.5;
-      else if(m.id==="horde")G.spawnMult=1.4;
-      else if(m.id==="wind")G.enemySpdMult=1.15;
-      else if(m.id==="berserk"){p.dmgMult*=1.3;G.dmgTakenMult=1.25;}
+      else if(m.id==="horde")G.spawnMult*=1.4;
+      else if(m.id==="wind")G.enemySpdMult*=1.15;
+      else if(m.id==="berserk"){p.dmgMult*=1.3;G.dmgTakenMult*=1.25;}
       else if(m.id==="sniper")p.crit+=0.15;
-      else if(m.id==="rich")G.goldMult=2;
+      else if(m.id==="rich")G.goldMult*=2;
     }
   }
   p.hp=p.maxhp;
@@ -970,6 +1092,7 @@ function newGame(opts){
   if(G.selCharRef && G.selCharRef.startWeapon && !getWeapon(G.selCharRef.startWeapon)) addWeapon(G.selCharRef.startWeapon);
   recalcPassives();
   p.hp=p.maxhp;
+  if(arcFx("startHalfHp",0))p.hp=p.maxhp*0.5;   // 성장의 나선
 }
 function addWeapon(id,lv){const ref=WEAPONS[id]||EVOS[id];
   const start=lv||Math.max(1,Math.min(MAXLV,cardLevel(id)||1));
@@ -982,21 +1105,21 @@ function recalcPassives(){
   let haste=0.12*(P.haste||0), dmg=0.15*(P.amp||0), crit=0.06*(P.surge||0), spd=0.10*(P.swift||0);
   if(S.frenzy){haste+=0.15;dmg+=0.15;}
   if(S.overdrive){crit+=0.15;spd+=0.15;}
-  p.hasteMult=(1+haste)*(cm.hasteMul||1);
-  p.dmgMult=(1+0.06*metaLv("dmg"))*(1+dmg)*(G.daily&&G.daily.mods.some(m=>m.id==="berserk")?1.3:1)*(cm.dmgMul||1);
-  p.pickup=70*(1+0.15*metaLv("magnet"))*(1+0.30*(P.magnet||0))*(cm.pickupMul||1);
-  p.spdMult=(1+0.05*metaLv("spd"))*(1+spd)*(G.daily&&G.daily.mods.some(m=>m.id==="slow")?0.9:1)*(cm.spdMul||1);
-  p.crit=0.10+0.04*metaLv("crit")+crit+(G.daily&&G.daily.mods.some(m=>m.id==="sniper")?0.15:0)+(cm.critAdd||0);
+  p.hasteMult=(1+haste)*(cm.hasteMul||1)*arcFx("hasteMul",1);
+  p.dmgMult=(1+0.06*metaLv("dmg"))*(1+dmg)*(G.daily&&G.daily.mods.some(m=>m.id==="berserk")?1.3:1)*(cm.dmgMul||1)*arcFx("dmgMul",1);
+  p.pickup=70*(1+0.15*metaLv("magnet"))*(1+0.30*(P.magnet||0))*(cm.pickupMul||1)*arcFx("pickupMul",1);
+  p.spdMult=(1+0.05*metaLv("spd"))*(1+spd)*(G.daily&&G.daily.mods.some(m=>m.id==="slow")?0.9:1)*(cm.spdMul||1)*arcFx("spdMul",1);
+  p.crit=0.10+0.04*metaLv("crit")+crit+(G.daily&&G.daily.mods.some(m=>m.id==="sniper")?0.15:0)+(cm.critAdd||0)+arcFx("critAdd",0);
   p.areaMult=(1+0.10*(P.area||0))*(cm.areaMul||1);
   p.armorMult=Math.max(0.3,(1-0.08*(P.armor||0))*(S.juggernaut?0.8:1)*(cm.armorMul||1));
   p.thornDmg=5*(P.thorn||0)*(S.juggernaut?2:1);
-  const hpBase=(100+META_UPS[0].val*metaLv("hp")+25*(P.vigor||0))*(cm.hpMul||1);
+  const hpBase=(100+META_UPS[0].val*metaLv("hp")+25*(P.vigor||0))*(cm.hpMul||1)*arcFx("hpMul",1);
   const glass=G.daily&&G.daily.mods.some(m=>m.id==="glass")?0.5:1;
   const newMax=hpBase*glass;
   if(newMax>p.maxhp)p.hp+=newMax-p.maxhp;
   p.maxhp=newMax; if(p.hp>p.maxhp)p.hp=p.maxhp;
   p.regen=0.4*(P.vigor||0)+(cm.regenAdd||0);
-  G.xpMult=(1+0.08*metaLv("xp"))*(1+0.10*(P.luck||0))*(cm.xpMul||1)*eventFx("xpMul",1);
+  G.xpMult=(1+0.08*metaLv("xp"))*(1+0.10*(P.luck||0))*(cm.xpMul||1)*eventFx("xpMul",1)*arcFx("xpMul",1);
 }
 
 /* ================================================================
@@ -1239,10 +1362,11 @@ function starBar(n){let s="";for(let i=0;i<5;i++)s+=i<n?"●":"○";return s;}
 function makeEnemy(base,ang,dist,elite){
   const p=G.player,d=dist,a=ang;
   const scale=1+G.t*0.022,sscale=Math.min(1+G.t*0.010,1.8)*G.enemySpdMult;
-  const dscale=1+G.t*0.014; // 시간 경과 → 접촉/탄환 피해 증가 (후반 난이도)
+  const dscale=(1+G.t*0.014)*(G.enemyDmgMul||1); // 시간 경과 + 난이도 → 접촉/탄환 피해
+  const hpm=(G.enemyHpMul||1);
   G.enemies.push({x:p.x+Math.cos(a)*d,y:p.y+Math.sin(a)*d,shape:base.shape,color:base.color,typeId:base.id,
     behavior:base.behavior||"chase",shootT:rand(1.2,2.4),mini:false,
-    hp:base.hp*scale*(elite?16:1),maxhp:base.hp*scale*(elite?16:1),
+    hp:base.hp*scale*hpm*(elite?16:1),maxhp:base.hp*scale*hpm*(elite?16:1),
     spd:base.spd*sscale*(elite?0.8:1),r:base.r*(elite?2.4:1),dmg:base.dmg*dscale*(elite?1.8:1),
     xp:base.xp*(elite?32:1),elite:!!elite,rot:Math.random()*6,hit:0,kx:0,ky:0,slowT:0,burnT:0,burnDmg:0});
 }
@@ -1274,9 +1398,9 @@ function fireEnemyBullet(e,p){
 function spawnBoss(){
   const p=G.player,ang=Math.random()*6.2832,d=Math.max(W,H)*0.7;
   discover("en","e_boss");
-  const hp=900*(1+G.t*0.03);
+  const hp=900*(1+G.t*0.03)*(G.enemyHpMul||1);
   G.boss={x:p.x+Math.cos(ang)*d,y:p.y+Math.sin(ang)*d,shape:"hexagon",color:"#ff3b5c",
-    hp,maxhp:hp,spd:52,r:34,dmg:20*(1+G.t*0.012),rot:0,hit:0,kx:0,ky:0,ringT:2.5,elite:true,slowT:0,burnT:0,burnDmg:0};
+    hp,maxhp:hp,spd:52,r:34,dmg:20*(1+G.t*0.012)*(G.enemyDmgMul||1),rot:0,hit:0,kx:0,ky:0,ringT:2.5,elite:true,slowT:0,burnT:0,burnDmg:0};
   flash("⚠ 보스 출현!","#ff3b5c");bigFX("BOSS","#ff3b5c");screenFlash("#ff3b5c",0.25);
   Snd.boss();vibrate([60,50,60]);G.camShake=16;
   document.getElementById("bossBar").style.display="block";
@@ -1309,6 +1433,8 @@ function update(dt){
 
   // 콤보 감쇠
   if(G.comboT>0){G.comboT-=dt;if(G.comboT<=0){G.combo=0;updateCombo();}}
+  // 무피격 시간 추적(업적)
+  G.noHitT+=dt; if(G.noHitT>G.noHitBest)G.noHitBest=G.noHitT;
 
   G.spawnAcc+=dt;
   const rate=0.62/((1+G.t*0.05)*G.spawnMult);
@@ -1357,7 +1483,7 @@ function update(dt){
       bigFX("BOSS DOWN!","#ffcf5c");screenFlash("#ffcf5c",0.35);
       Snd.boom();Snd.gold();vibrate([40,30,80]);
       for(let i=0;i<18;i++)G.gems.push({x:b.x+rand(-20,20),y:b.y+rand(-20,20),xp:6,r:6,color:"#ffcf5c",vx:rand(-60,60),vy:rand(-60,60)});
-      G.gold+=20*G.goldMult;addKill();G.boss=null;document.getElementById("bossBar").style.display="none";
+      G.gold+=20*G.goldMult;addKill();G.bossKills=(G.bossKills||0)+1;G.boss=null;document.getElementById("bossBar").style.display="none";
       pushChoiceEvent({title:"👑 보스 처치!",sub:"무기 보상을 선택하세요",cards:weaponChoices(3),roll:()=>weaponChoices(3)});
     }}
 
@@ -1453,6 +1579,7 @@ function updateCombo(){
 
 function hurt(dmg,src){
   const p=G.player;
+  G.noHitT=0;
   p.hp-=dmg*p.armorMult*G.dmgTakenMult;
   p.iframe=0.6;G.camShake=11;G.hurtFx=1;Snd.hurt();vibrate(60);
   if(p.thornDmg&&src&&src.hp>0){dealDamage(src,p.thornDmg,p.x,p.y);}
@@ -1821,7 +1948,7 @@ volBinds.forEach(([s,v,t])=>bindVol(s,v,t));
 /* ================================================================
    메인 화면 탭
    ================================================================ */
-const TABS=["tabMain","tabDaily","tabRank","tabShop","tabCollection","tabCfg"];
+const TABS=["tabMain","tabDaily","tabRank","tabShop","tabCollection","tabAch","tabCfg"];
 document.querySelectorAll("#bottomNav button").forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.remove("active"));
@@ -1832,6 +1959,7 @@ document.querySelectorAll("#bottomNav button").forEach(btn=>{
     if(btn.dataset.tab==="tabRank")renderRank();
     if(btn.dataset.tab==="tabShop")renderShop();
     if(btn.dataset.tab==="tabCollection")renderCollection();
+    if(btn.dataset.tab==="tabAch")renderAch();
     if(btn.dataset.tab==="tabCfg")syncVolUI();
     Snd.init();Snd.uiTick();
   };
@@ -1853,7 +1981,7 @@ function renderMain(){
   const best=RUNS.length?RUNS[0]:null;
   document.getElementById("bestLine").innerHTML=best?
     `최고 기록: <b>${fmtT(best.t)}</b> 생존 · Lv${best.lv} · ☠${best.k}`:"아직 기록이 없습니다. 첫 런을 시작해보세요!";
-  renderCharPick(); renderMapPick(); renderEventBanner();
+  renderCharPick(); renderMapPick(); renderDiffPick(); renderEventBanner();
 }
 /* ---------- 캐릭터/맵 선택 (메인) ---------- */
 function renderCharPick(){
@@ -1868,6 +1996,44 @@ function renderMapPick(){
   el.innerHTML=MAPS.map(m=>`<div class="mapchip ${META.selMap===m.id?"on":""}" data-map="${m.id}">${m.name}</div>`).join("");
   el.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{META.selMap=b.dataset.map;saveMeta();renderMapPick();Snd.init();Snd.uiTick();});
 }
+function renderDiffPick(){
+  const el=document.getElementById("diffPick"); if(!el)return;
+  const cur=META.selDiff||0;
+  el.innerHTML=`<div style="font-size:10.5px;color:var(--muted);margin-bottom:4px;">난이도 (높을수록 보상↑)</div>`+
+    `<div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;">`+
+    DIFFS.map(d=>`<div class="mapchip ${cur===d.id?"on":""}" data-diff="${d.id}" style="${cur===d.id?"background:"+d.color+";color:#08111a;":"color:"+d.color}">${d.name} ×${d.reward}</div>`).join("")+`</div>`;
+  el.querySelectorAll("[data-diff]").forEach(b=>b.onclick=()=>{META.selDiff=parseInt(b.dataset.diff,10);saveMeta();renderDiffPick();Snd.init();Snd.uiTick();});
+}
+/* ---------- 업적 탭 ---------- */
+function renderAch(){
+  const el=document.getElementById("achBody"); if(!el)return;
+  const done=ACHIEVEMENTS.filter(a=>ACH.done[a.id]).length;
+  el.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">달성 <b style="color:var(--xp)">${done}</b> / ${ACHIEVEMENTS.length}</div>`+
+    ACHIEVEMENTS.map(a=>{const ok=!!ACH.done[a.id];
+      return `<div class="achrow ${ok?"done":""}">
+        <div class="ai">${ok?"✅":"🔒"}</div>
+        <div class="ab"><div class="an">${a.name}</div><div class="ad">${a.desc}</div></div>
+        <div class="ar">${achRewardText(a.rw)}</div></div>`;}).join("");
+}
+/* ---------- 아르카나 선택 ---------- */
+let pendingStart=null;
+function openArcana(opts){
+  pendingStart=opts||{};
+  const cards=rollArcana(3);
+  const wrap=document.getElementById("arcanaCards");
+  wrap.innerHTML=cards.map(a=>`<div class="arccard" data-arc="${a.id}">
+    <div class="arci">${a.icon}</div>
+    <div><div class="arcn">${a.name}</div><div class="arcd">${a.desc}</div></div></div>`).join("");
+  wrap.querySelectorAll("[data-arc]").forEach(el=>el.onclick=()=>{
+    document.getElementById("arcanaModal").classList.remove("show");
+    const o=Object.assign({},pendingStart,{arcana:ARCANA_BY[el.dataset.arc]});
+    Snd.evolve();vibrate(30); startGame(o);});
+  document.getElementById("arcanaModal").classList.add("show");
+  Snd.init();Snd.uiTick();
+}
+document.getElementById("arcanaSkip").onclick=()=>{
+  document.getElementById("arcanaModal").classList.remove("show");
+  startGame(Object.assign({},pendingStart,{arcana:null}));};
 /* ---------- 캐릭터 모달 ---------- */
 function openCharModal(){document.getElementById("charModal").classList.add("show");renderCharModal();Snd.init();Snd.uiTick();}
 function renderCharModal(){
@@ -2484,6 +2650,8 @@ function startGame(opts){
   newGame(opts);refreshWeaponRow();
   choiceQueue.length=0;overlayShowing=false;introActive=false;introT=0;
   running=true;paused=false;menuPause=false;hitStop=0;
+  const ri=document.getElementById("runInfo");
+  if(ri)ri.innerHTML=`<span style="color:${G.diffRef.color}">${G.diffRef.name}</span>`+(G.arcana?` · <span style="color:var(--gold)">${G.arcana.icon} ${G.arcana.name}</span>`:"");
   document.getElementById("startScreen").classList.add("hide");
   document.getElementById("endScreen").classList.add("hide");
   document.getElementById("bossBar").style.display="none";
@@ -2513,6 +2681,9 @@ function endGame(){
   // 마일스톤 보상: 100킬 이상 시 일반 상자 지급
   let chestMsg="";
   if(G.kills>=100){META.chests.n=(META.chests.n||0)+1;chestMsg=`<br><span style="color:#8b7cff;font-weight:800;">🎁 일반 상자 +1 (수집함에서 개봉)</span>`;}
+  // 업적 판정
+  const achGot=checkAchievements(G);
+  const achMsg=achGot.length?`<br><span style="color:var(--gold);font-weight:800;">🏅 업적 달성: ${achGot.map(a=>a.name).join(", ")} (${achGot.map(a=>achRewardText(a.rw)).join(" / ")})</span>`:"";
   saveMeta();saveDex();
   saveRun();
   document.getElementById("bossBar").style.display="none";
@@ -2525,15 +2696,18 @@ function endGame(){
   document.getElementById("endStats").innerHTML=
     `생존 <b>${mm}:${String(ss).padStart(2,"0")}</b> · 레벨 <b>${G.level}</b> · 처치 <b>${G.kills}</b> · 최대콤보 <b>×${G.maxCombo}</b>`+
     (evoNames.length?`<br>합성 진화: <b>${evoNames.join(", ")}</b>`:"")+
+    `<br>난이도 <b style="color:${G.diffRef.color}">${G.diffRef.name}</b> (보상 ×${G.diffRef.reward})`+
+    (G.arcana?` · 아르카나 <b style="color:var(--gold)">${G.arcana.name}</b>`:"")+
+    (evoNames.length?`<br>합성 진화: <b>${evoNames.join(", ")}</b>`:"")+
     (superNames.length?`<br>패시브 융합: <b style="color:#ff6bd5">${superNames.join(", ")}</b>`:"")+
-    dailyMsg;
+    dailyMsg+achMsg;
   document.getElementById("endGold").innerHTML=`◆ +${earned} 코어 획득 (보유 ${META.gold})`+chestMsg;
   document.getElementById("endScreen").classList.remove("hide");
   Snd.gold();
   // 판 종료 광고 (광고 제거 구매 시 스킵)
   showAd();
 }
-document.getElementById("startBtn").onclick=()=>startGame();
+document.getElementById("startBtn").onclick=()=>openArcana({});
 document.getElementById("restartBtn").onclick=()=>{
   document.getElementById("endScreen").classList.add("hide");
   document.getElementById("startScreen").classList.remove("hide");
