@@ -88,6 +88,8 @@
     background:linear-gradient(160deg,#141a2b,#1b2338);border:1px solid #26304d;transition:transform .06s,border-color .2s;}
   .pcard:active{transform:scale(.98);}
   .pcard.evo{border-color:var(--gold);background:linear-gradient(160deg,#2a2410,#1b2338);box-shadow:0 0 20px rgba(255,207,92,.3);}
+  .pcard.myth{border-color:#ff3b5c;background:linear-gradient(160deg,#2e0f18,#1b2338);box-shadow:0 0 26px rgba(255,59,92,.45);}
+  .tag.myth{background:linear-gradient(135deg,#ff3b5c,#ffcf5c);color:#2a0008;}
   .pcard.super{border-color:#ff6bd5;background:linear-gradient(160deg,#2a1024,#1b2338);box-shadow:0 0 20px rgba(255,107,213,.3);}
   .pcard.new{border-color:var(--acc);}
   .pcard .ico{width:50px;height:50px;flex:0 0 50px;border-radius:14px;background:#0f1424;border:1px solid #26304d;
@@ -550,8 +552,7 @@
 <!-- 캐릭터 (뽑기/선택/강화) -->
 <div id="charModal"><div class="dbox wide">
   <h2 style="margin:0 0 6px;font-size:19px;text-align:center;">🦸 캐릭터</h2>
-  <div style="font-size:11.5px;color:var(--muted);text-align:center;margin:0 0 10px;line-height:1.5;">
-    일반·고급 <b style="color:var(--gold)">상자</b>에서 캐릭터가 나옵니다 · 중복 획득 시 강화<br>탭하면 특성 확인 후 선택</div>
+  <div style="font-size:11px;color:var(--muted);text-align:center;margin:0 0 10px;">상자에서 획득 · 중복 시 강화</div>
   <div id="charGrid" class="chargrid"></div>
   <div id="charSkinArea"></div>
   <button class="dclose" id="charClose">닫기</button>
@@ -649,7 +650,6 @@
   <!-- 메인 -->
   <div class="scontent" id="tabMain">
     <h1 id="mainTitle">GEOMETRY <span class="g">SURVIVORS</span></h1>
-    <div class="tagline">도형을 합성해 무기를 진화시켜라.<br>끝없는 도형 무리에서 최대한 오래 생존!</div>
     <div id="loginBar"></div>
     <div class="goldbar">◆ <span id="goldValMain">0</span> 코어 · 💎 <span id="gemValMain">0</span></div>
     <div id="noticeBar"></div>
@@ -664,11 +664,8 @@
       <button id="attendBtn">📅 출석체크</button>
     </div>
     <button class="bigbtn" id="startBtn">▶ 시작</button>
-    <div class="hint">
-      이동: <span class="k">화면 드래그</span> / <span class="k">WASD·방향키</span> · 무기 자동발사<br>
-      무기+짝 패시브 = <b>진화</b> (레벨업 카드 등장) · <b>5의 배수 레벨</b> = 합성 찬스(패시브 융합)<br>
-      <b>정예·보스 처치</b> 시 무기 보상 · 코어로 영구 강화
-    </div>
+    <button class="bigbtn" id="towerBtn" style="background:linear-gradient(135deg,#ffcf5c,#ff9f43);color:#3a2400;margin-top:8px;">🏯 무한 타워</button>
+    <div class="bestline" id="towerBest"></div>
   </div>
   <!-- 일일과제 -->
   <div class="scontent top hide" id="tabDaily">
@@ -882,17 +879,20 @@ const CHESTS={
 const CARD_THRESH=[1,3,6,10,15];
 const USER_KEY="geoSurv.user.v1";
 const ATT_KEY="geoSurv.attend.v1";
-let META={gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null}, RUNS=[], DAILY_DONE={}, DEX={en:{},we:{},ev:{},su:{}}, USER={name:null}, ATTEND={claimed:{}};
+/* ---- 무한 타워: 층마다 강해짐, 최고층 기록 ---- */
+const TOWER_FLOOR_SEC=45;          // 한 층 제한시간(생존하면 다음 층)
+function towerBest(){return META.towerBest||0;}
+let META={gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null,pets:{},selPet:null}, RUNS=[], DAILY_DONE={}, DEX={en:{},we:{},ev:{},su:{},my:{}}, USER={name:null}, ATTEND={claimed:{}};
 function loadAll(){
-  try{const r=localStorage.getItem(META_KEY);if(r)META=Object.assign({gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null},JSON.parse(r));}catch(e){}
+  try{const r=localStorage.getItem(META_KEY);if(r)META=Object.assign({gold:0,gems:0,ups:{},cards:{},cardLv:{},chests:{n:0,p:0},chars:{c_cube:1},selChar:"c_cube",selMap:"void",skins:{},titles:{},maps:{},selSkin:null,selTitle:null,pets:{},selPet:null},JSON.parse(r));}catch(e){}
   if(!META.cards)META.cards={}; if(!META.chests)META.chests={n:0,p:0}; if(META.gems==null)META.gems=0;
   if(!META.chars||!Object.keys(META.chars).length)META.chars={c_cube:1};
-  if(!META.skins)META.skins={}; if(!META.titles)META.titles={}; if(!META.maps)META.maps={}; if(!META.selChar)META.selChar="c_cube"; if(!META.selMap)META.selMap="void";
+  if(!META.skins)META.skins={}; if(!META.titles)META.titles={}; if(!META.maps)META.maps={}; if(!META.pets)META.pets={}; if(!META.selChar)META.selChar="c_cube"; if(!META.selMap)META.selMap="void";
   // 카드 레벨 마이그레이션: 기존 저장분은 임계값 기준 자동 승급(1회), 이후엔 수동
   if(!META.cardLv){META.cardLv={};for(const id in META.cards){let lv=0;for(const t of CARD_THRESH)if((META.cards[id]||0)>=t)lv++;if(lv>0)META.cardLv[id]=lv;}saveMeta();}
   try{const r=localStorage.getItem(RUNS_KEY);if(r)RUNS=JSON.parse(r)||[];}catch(e){}
   try{const r=localStorage.getItem(DAILY_KEY);if(r)DAILY_DONE=JSON.parse(r)||{};}catch(e){}
-  try{const r=localStorage.getItem(DEX_KEY);if(r)DEX=Object.assign({en:{},we:{},ev:{},su:{}},JSON.parse(r));}catch(e){}
+  try{const r=localStorage.getItem(DEX_KEY);if(r)DEX=Object.assign({en:{},we:{},ev:{},su:{},my:{}},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(USER_KEY);if(r)USER=Object.assign({name:null},JSON.parse(r));}catch(e){}
   try{const r=localStorage.getItem(ATT_KEY);if(r)ATTEND=Object.assign({claimed:{}},JSON.parse(r));}catch(e){}
   loadEvent(); loadAch(); loadPass(); checkSeasonReset(); mergePassContent();
@@ -911,7 +911,7 @@ function cardLevel(id){return META.cardLv[id]||0;}                       // 게�
 function cardNext(id){const lv=cardLevel(id);if(lv>=CARD_THRESH.length)return null;return{need:CARD_THRESH[lv],have:cardCount(id)};} // 다음 레벨 필요 장수
 function cardCanUpgrade(id){const lv=cardLevel(id);return lv<CARD_THRESH.length && cardCount(id)>=CARD_THRESH[lv];}
 function upgradeCard(id){if(!cardCanUpgrade(id))return false;META.cardLv[id]=cardLevel(id)+1;saveMeta();return true;}
-function discover(kind,id){if(!DEX[kind][id]){DEX[kind][id]=1;}}
+function discover(kind,id){if(!DEX[kind])DEX[kind]={};if(!DEX[kind][id]){DEX[kind][id]=1;}}
 
 /* ================================================================
    맵 / 캐릭터 / 출석 데이터
@@ -1291,6 +1291,44 @@ const EVOS={
   blizzard:{id:"blizzard",name:"눈보라",shape:"hexagon",color:"#d8f0ff",evolved:true,desc:"주위 냉기 오라(빙결+피해)",from:"frost"},
   minefield:{id:"minefield",name:"지뢰밭",shape:"circle",color:"#ffe89a",evolved:true,desc:"대량 지뢰 + 대폭발",from:"mine"},
 };
+/* ---- 신화 무기: 진화 무기 2개를 합쳐 최종 1개로 (3단계 융합) ---- */
+const MYTHICS={
+  m_ragnarok:{id:"m_ragnarok",name:"라그나로크",shape:"star",color:"#ff3b5c",mythic:true,evolved:true,
+    need:["hex_saw","inferno"], base:"tri_shot", desc:"불타는 육각날 폭풍 — 회전 관통 + 광역 화상"},
+  m_singularity:{id:"m_singularity",name:"싱귤래리티",shape:"circle",color:"#c86bff",mythic:true,evolved:true,
+    need:["supernova","blizzard"], base:"circ_nova", desc:"시공 붕괴 — 흡입 충격파 + 절대 빙결"},
+  m_judgement:{id:"m_judgement",name:"심판",shape:"diamond",color:"#6af2ff",mythic:true,evolved:true,
+    need:["prism","storm"], base:"beam", desc:"천공의 심판 — 다중 레이저 + 연쇄 뇌격"},
+  m_apocalypse:{id:"m_apocalypse",name:"아포칼립스",shape:"triangle",color:"#ff9f43",mythic:true,evolved:true,
+    need:["barrage","minefield"], base:"missile", desc:"종말의 포화 — 다연장 미사일 + 초대형 폭발"},
+  m_eternity:{id:"m_eternity",name:"이터니티",shape:"hexagon",color:"#8bffd6",mythic:true,evolved:true,
+    need:["star_burst","cyclone"], base:"sq_orbit", desc:"영원의 궤도 — 거대 궤도체 + 무한 파편"},
+};
+const MYTHIC_BY_NEED={};
+Object.values(MYTHICS).forEach(m=>{m.need.forEach(n=>{(MYTHIC_BY_NEED[n]=MYTHIC_BY_NEED[n]||[]).push(m);});});
+
+/* ================================================================
+   펫 / 드론 — 플레이어를 따라다니며 자동 공격 (상자 획득, 레벨 강화)
+   ================================================================ */
+const PETS=[
+  {id:"pt_bit",  name:"비트",   shape:"square",  color:"#57e0c0", rarity:"common", cd:1.5, dmg:6,  desc:"가까운 적에게 탄환 발사"},
+  {id:"pt_spark",name:"스파키", shape:"diamond", color:"#ffd24a", rarity:"common", cd:1.9, dmg:8,  desc:"전기탄 발사"},
+  {id:"pt_orb",  name:"오브",   shape:"circle",  color:"#8b7cff", rarity:"rare",   cd:1.2, dmg:9,  desc:"빠른 연사"},
+  {id:"pt_frost",name:"프로스티",shape:"hexagon",color:"#9fd8ff", rarity:"rare",   cd:1.6, dmg:7,  slow:1, desc:"맞은 적을 둔화"},
+  {id:"pt_flame",name:"플레어", shape:"triangle",color:"#ff7a3c", rarity:"epic",   cd:1.3, dmg:10, burn:4, desc:"화상 피해 추가"},
+  {id:"pt_void", name:"보이드", shape:"star",    color:"#c86bff", rarity:"epic",   cd:1.0, dmg:12, pierce:2, desc:"관통 탄환 고속 발사"},
+  {id:"pt_omega",name:"오메가", shape:"star",    color:"#ffcf5c", rarity:"mythic", cd:0.7, dmg:16, pierce:3, burn:5, desc:"최강 드론 — 관통+화상 초고속"},
+];
+const PET_BY={}; PETS.forEach(p=>PET_BY[p.id]=p);
+const PET_THRESH=[1,3,6,10,15];
+function petCount(id){return (META.pets&&META.pets[id])||0;}
+function petLevel(id){const c=petCount(id);let lv=0;for(const t of PET_THRESH)if(c>=t)lv++;return lv;}
+function petNext(id){const lv=petLevel(id);if(lv>=PET_THRESH.length)return null;return{need:PET_THRESH[lv],have:petCount(id)};}
+function rollPet(weights){
+  const pool=PETS.filter(p=>weights[p.rarity]); let total=0; const cum=[];
+  for(const p of pool){total+=weights[p.rarity];cum.push([total,p]);}
+  const r=Math.random()*total; for(const [t,p] of cum) if(r<t) return p; return pool[pool.length-1];
+}
 
 /* ================================================================
    패시브 10종 / 융합 5종
@@ -1362,13 +1400,14 @@ function newGame(opts){
     spawnAcc:0,eliteTimer:Math.min(16,CFG.eliteInterval),boss:null,nextBossAt:CFG.bossInterval,hurtFx:0,camShake:0,
     daily:null,noPassives:false,spawnMult:1,enemySpdMult:1,goldMult:1,dmgTakenMult:1,
     diff:0,diffRef:DIFFS[0],arcana:null,bossKills:0,noHitT:0,noHitBest:0,enemyHpMul:1,enemyDmgMul:1,
-    wave:0,waveT:WAVE_DUR,calmT:0,revived:false,
+    wave:0,waveT:WAVE_DUR,calmT:0,revived:false,pet:null,tower:false,floor:0,floorT:TOWER_FLOOR_SEC,
   };
   const p=G.player;
   // 난이도 + 아르카나
   G.diff=Math.max(0,Math.min(DIFFS.length-1,opts.diff!=null?opts.diff:(META.selDiff||0)));
   G.diffRef=DIFFS[G.diff];
   G.arcana=opts.arcana||null;
+  G.tower=!!opts.tower; G.floor=0; G.floorT=TOWER_FLOOR_SEC;
   G.enemyHpMul=G.diffRef.hpMul;
   G.enemyDmgMul=G.diffRef.dmgMul;
   G.spawnMult=G.diffRef.spawnMul*arcFx("spawnMul",1);
@@ -1385,6 +1424,12 @@ function newGame(opts){
   G.lifesteal=G.cmod.lifesteal;
   G.selCharRef=ch;
   G.skin=(META.selSkin&&ownSkin(META.selSkin))?SKINS[META.selSkin]:null;   // 패스 스킨
+  // 펫/드론
+  if(META.selPet&&petCount(META.selPet)>0){
+    const pr=PET_BY[META.selPet],plv=Math.max(1,petLevel(META.selPet));
+    G.pet={ref:pr,lv:plv,x:0,y:0,ang:0,timer:0,
+      dmg:pr.dmg*(1+0.25*(plv-1)), cd:pr.cd*(1-0.06*(plv-1))};
+  } else G.pet=null;
   p.maxhp=CFG.playerHp+META_UPS[0].val*metaLv("hp");
   G.xpMult=1+0.08*metaLv("xp");
   if(opts.daily){
@@ -1444,6 +1489,23 @@ function recalcPassives(){
    무기 스탯
    ================================================================ */
 function wStat(w){
+  const myth=!!w.ref.mythic;
+  if(myth){                       // 신화: 진화 스탯을 기반으로 대폭 강화
+    const fake={ref:{evolved:true,from:w.ref.base,id:w.ref.base},lv:w.lv+3};
+    const s=wStatBase(fake);
+    const out={};
+    for(const k in s){
+      if(k==="cd"||k==="shard")out[k]=s[k]*0.65;                       // 쿨 35%↓
+      else if(k==="dmg"||k==="shardDmg"||k==="auraDmg"||k==="burn")out[k]=s[k]*1.9;  // 피해 90%↑
+      else if(k==="radius"||k==="auraR"||k==="range")out[k]=s[k]*1.35;
+      else if(k==="count"||k==="blades"||k==="n"||k==="bolts"||k==="jumps"||k==="beams"||k==="rings"||k==="maxMines")out[k]=Math.ceil(s[k]*1.5);
+      else out[k]=s[k];
+    }
+    return out;
+  }
+  return wStatBase(w);
+}
+function wStatBase(w){
   const lv=w.lv,dm=G.player.dmgMult,ha=G.player.hasteMult,A=G.player.areaMult,evo=!!w.ref.evolved;
   const base=evo?w.ref.from:w.id;
   switch(base){
@@ -1511,7 +1573,7 @@ function renderChoiceOverlay(){
   cardsEl.innerHTML="";
   ev.cards.forEach(o=>{
     const el=document.createElement("div");
-    el.className="pcard"+(o.kind==="evo"?" evo":o.kind==="super"?" super":o.tagcls==="new"?" new":"");
+    el.className="pcard"+(o.kind==="mythic"?" myth":o.kind==="evo"?" evo":o.kind==="super"?" super":o.tagcls==="new"?" new":"");
     const ico=document.createElement("div");ico.className="ico";ico.appendChild(o.ico);
     const body=document.createElement("div");body.className="body";
     body.innerHTML=`<div class="t">${o.title} <span class="tag ${o.tagcls}">${o.tag}</span></div><div class="d">${o.desc}</div>`;
@@ -1631,6 +1693,21 @@ function evoCandidates(){
   }
   return out;
 }
+/* 신화 융합 후보: 진화 무기 2개를 모두 보유 시 */
+function mythicCandidates(){
+  const out=[];
+  const owned=new Set(G.weapons.filter(w=>w.ref.evolved&&!w.ref.mythic).map(w=>w.id));
+  for(const id in MYTHICS){
+    const m=MYTHICS[id];
+    if(G.weapons.some(w=>w.id===id))continue;              // 이미 보유
+    if(m.need.every(n=>owned.has(n))){
+      out.push({kind:"mythic",mid:id,title:m.name,tag:"신화 융합",tagcls:"myth",
+        ico:iconCanvas(m.shape,m.color,0.3),
+        desc:`${EVOS[m.need[0]].name} + ${EVOS[m.need[1]].name} → ${m.desc}`});
+    }
+  }
+  return out;
+}
 function superCandidates(){
   const out=[];
   for(const id in SUPERS){
@@ -1668,7 +1745,7 @@ function weaponChoices(n){
   return opts.slice(0,n).map(decorate);
 }
 function decorate(o){
-  if(o.kind==="evo"||o.kind==="super")return o;
+  if(o.kind==="evo"||o.kind==="super"||o.kind==="mythic")return o;
   if(o.kind==="wnew"){const r=WEAPONS[o.weapon];return{...o,title:r.name,tag:"NEW",tagcls:"new",ico:iconCanvas(r.shape,r.color,0.3),desc:r.desc};}
   if(o.kind==="wup"){const r=WEAPONS[o.weapon];return{...o,title:r.name,tag:`Lv${o.w.lv}→${o.w.lv+1}`,tagcls:"up",
     ico:iconCanvas(r.shape,r.color,0.3),desc:r.desc+` (짝: ${PASSIVES[r.fuseWith].name})`};}
@@ -1683,6 +1760,19 @@ function applyChoice(o){
     burst(G.player.x,G.player.y,EVOS[o.evoId].color,EVOS[o.evoId].shape,36);
     pushRing(G.player.x,G.player.y,EVOS[o.evoId].color,260);pushRing(G.player.x,G.player.y,"#ffffff",160);
     G.camShake=18;Snd.evolve();vibrate([30,40,30,40,60]);
+  }else if(o.kind==="mythic"){
+    const m=MYTHICS[o.mid];
+    // 재료 진화무기 2개 제거 후 신화 무기 1개 생성(레벨 = 재료 중 최고)
+    let keepLv=1;
+    for(let i=G.weapons.length-1;i>=0;i--){
+      if(m.need.includes(G.weapons[i].id)){keepLv=Math.max(keepLv,G.weapons[i].lv);G.weapons.splice(i,1);}
+    }
+    G.weapons.push({id:o.mid,ref:m,lv:keepLv,timer:0,angle:0,mines:[]});
+    discover("my",o.mid);
+    bigFX("MYTHIC!",m.color);screenFlash(m.color,0.45);
+    burst(G.player.x,G.player.y,m.color,m.shape,16);
+    pushRing(G.player.x,G.player.y,m.color,320);pushRing(G.player.x,G.player.y,"#ffffff",200);
+    G.camShake=24;hitStop=0.08;Snd.superfuse();Snd.evolve();vibrate([40,50,40,50,80]);
   }else if(o.kind==="super"){
     G.supers[o.sid]=true;recalcPassives();discover("su",o.sid);
     bigFX("SUPER FUSION!","#ff6bd5");screenFlash("#ff6bd5",0.3);
@@ -1826,6 +1916,24 @@ function update(dt){
     bigFX("WAVE "+G.wave,"#8b7cff"); pushRing(p.x,p.y,"#8b7cff",200); Snd.combo(2); vibrate(25);
   }
   if(G.calmT>0)G.calmT-=dt;
+  // 무한 타워: 층 클리어 시 적 전멸 + 강화 + 보상
+  if(G.tower){
+    G.floorT-=dt;
+    if(G.floorT<=0){
+      G.floor++; G.floorT=TOWER_FLOOR_SEC;
+      // 층 클리어 연출 + 화면 정리
+      for(const e of G.enemies){explodeFX(e.x,e.y,e.color,26);}
+      G.enemies.length=0; G.ebullets.length=0;
+      G.enemyHpMul*=1.28; G.enemyDmgMul*=1.16; G.spawnMult*=1.06;   // 층마다 강해짐
+      G.gold+=Math.round(15*G.goldMult*(1+G.floor*0.2));
+      p.hp=Math.min(p.maxhp,p.hp+p.maxhp*0.25); p.iframe=Math.max(p.iframe,2);
+      for(let i=0;i<6;i++)G.gems.push({x:p.x+rand(-50,50),y:p.y+rand(-50,50),xp:6,r:6,color:"#ffcf5c",vx:rand(-60,60),vy:rand(-60,60)});
+      if(G.floor>towerBest()){META.towerBest=G.floor;saveMeta();}
+      bigFX(G.floor+"층 돌파!","#ffcf5c"); screenFlash("#ffcf5c",0.3);
+      pushRing(p.x,p.y,"#ffcf5c",300); G.camShake=16; Snd.evolve(); vibrate([30,40,30]);
+      if(G.floor%3===0)pushChoiceEvent({title:"🏯 "+G.floor+"층 보상",sub:"무기 보상을 선택하세요",cards:weaponChoices(3),roll:()=>weaponChoices(3)});
+    }
+  }
   if(!G.boss&&G.t>=G.nextBossAt){G.nextBossAt+=CFG.bossInterval;spawnBoss();}
 
   // 적 이동/상태
@@ -1873,6 +1981,21 @@ function update(dt){
       pushChoiceEvent({title:"👑 보스 처치!",sub:"무기 보상을 선택하세요",cards:weaponChoices(3),roll:()=>weaponChoices(3)});
     }}
 
+  // 펫: 플레이어 주위를 공전하며 자동 공격
+  if(G.pet){const pt=G.pet;
+    pt.ang+=dt*1.6;
+    const tx=p.x+Math.cos(pt.ang)*46, ty=p.y+Math.sin(pt.ang)*46;
+    pt.x+=(tx-pt.x)*Math.min(1,dt*6); pt.y+=(ty-pt.y)*Math.min(1,dt*6);
+    pt.timer-=dt;
+    if(pt.timer<=0){
+      const tgt=nearestEnemy(pt.x,pt.y);
+      if(tgt){pt.timer=pt.cd/(p.hasteMult||1);
+        const a=Math.atan2(tgt.y-pt.y,tgt.x-pt.x);
+        G.bullets.push({x:pt.x,y:pt.y,vx:Math.cos(a)*330,vy:Math.sin(a)*330,r:6,dmg:pt.dmg*p.dmgMult,
+          pierce:pt.ref.pierce||0,life:1.2,shape:pt.ref.shape,color:pt.ref.color,rot:a,silent:true,
+          fx:{slow:pt.ref.slow?true:undefined,burn:pt.ref.burn?pt.ref.burn*p.dmgMult:undefined}});}
+    }
+  }
   rebuildTargets();                                   // 프레임당 1회 대상 목록 갱신(무기 조준·충돌 공용)
   for(const w of G.weapons)fireWeapon(w,dt);
   if(G.bullets.length>MAX_BULLETS)G.bullets.splice(0,G.bullets.length-MAX_BULLETS);
@@ -1997,16 +2120,16 @@ function gainXP(n){G.xp+=n*G.xpMult;Snd.pickup(Math.min(24,G.level));
 function queueLevelUp(){
   document.getElementById("lvNum").textContent=G.level;
   if(G.level%5===0){
-    const fus=[...evoCandidates(),...superCandidates()];
+    const fus=[...mythicCandidates(),...evoCandidates(),...superCandidates()];
     if(fus.length){
       pushChoiceEvent({title:"✦ 합성 찬스!",sub:"융합할 조합을 선택하세요",fuse:true,intro:true,
         cards:[...fus.slice(0,4),...normalChoices(Math.max(0,3-fus.length))],
-        roll:()=>{const f=[...evoCandidates(),...superCandidates()];return [...f.slice(0,4),...normalChoices(Math.max(0,3-f.length))];}});
+        roll:()=>{const f=[...mythicCandidates(),...evoCandidates(),...superCandidates()];return [...f.slice(0,4),...normalChoices(Math.max(0,3-f.length))];}});
       return;
     }
   }
   pushChoiceEvent({title:"레벨 업!",sub:"능력 하나를 선택하세요",intro:true,
-    cards:normalChoices(3,evoCandidates()),roll:()=>normalChoices(3,evoCandidates())});
+    cards:normalChoices(3,[...mythicCandidates(),...evoCandidates()]),roll:()=>normalChoices(3,[...mythicCandidates(),...evoCandidates()])});
 }
 
 /* ================================================================
@@ -2016,7 +2139,7 @@ function nearestEnemy(x,y){let best=null,bd=1e18;
   for(const e of allTargets()){if(e.hp<=0)continue;const d=dist2(x,y,e.x,e.y);if(d<bd){bd=d;best=e;}}return best;}
 
 function fireWeapon(w,dt){
-  const p=G.player,s=wStat(w),base=w.ref.evolved?w.ref.from:w.id;
+  const p=G.player,s=wStat(w),base=w.ref.mythic?w.ref.base:(w.ref.evolved?w.ref.from:w.id);
   switch(base){
   case "tri_shot":
     if(!w.ref.evolved){
@@ -2229,6 +2352,10 @@ function render(){
     }
     ctx.globalAlpha=1;
   }
+  if(G.pet){const pt=G.pet;
+    ctx.globalAlpha=0.25;shape(ctx,"circle",pt.x,pt.y,13,pt.ref.color,0);ctx.globalAlpha=1;
+    shape(ctx,pt.ref.shape,pt.x,pt.y,9.5,"#05070d",G.t*2.2);
+    shape(ctx,pt.ref.shape,pt.x,pt.y,8,pt.ref.color,G.t*2.2);}
   if(!(p.iframe>0&&(G.t*20|0)%2)){
     const sk=G.skin;
     shape(ctx,"circle",p.x,p.y,p.r+3,"#1b2338",0);
@@ -2306,7 +2433,7 @@ function updateHUD(){
   document.getElementById("killVal").textContent=G.kills;
   const s=Math.floor(G.t);document.getElementById("timeVal").textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
   const wv=document.getElementById("waveVal");
-  if(wv)wv.textContent=`W${G.wave+1} ${Math.ceil(G.waveT)}s`;
+  if(wv)wv.textContent=G.tower?`🏯${G.floor+1}층 ${Math.ceil(G.floorT)}s`:`W${G.wave+1} ${Math.ceil(G.waveT)}s`;
 }
 
 /* ================================================================
@@ -2380,6 +2507,8 @@ function renderMain(){
   const best=RUNS.length?RUNS[0]:null;
   document.getElementById("bestLine").innerHTML=best?
     `최고 기록: <b>${fmtT(best.t)}</b> 생존 · Lv${best.lv} · ☠${best.k}`:"아직 기록이 없습니다. 첫 런을 시작해보세요!";
+  const tb=document.getElementById("towerBest");
+  if(tb)tb.innerHTML=towerBest()?`🏯 최고 <b>${towerBest()}층</b>`:"";
   renderCharPick(); renderMapPick(); renderDiffPick(); renderCosmetics(); renderEventBanner();
   const nt=document.getElementById("noticeBar");
   if(nt)nt.innerHTML=REMOTE_NOTICE?`<div class="noticebar">📢 ${REMOTE_NOTICE}</div>`:"";
@@ -2547,6 +2676,13 @@ function renderCharSkinArea(){
     h+=`<div class="cchips"><div class="mapchip ${!META.selSkin?"on":""}" data-cskin="">기본</div>`+
       owns.map(s=>`<div class="mapchip ${META.selSkin===s.id?"on":""}" data-cskin="${s.id}" style="${META.selSkin===s.id?"background:"+s.color+";color:#08111a":"color:"+s.color}">${s.name}</div>`).join("")+`</div>`;
   }
+  // 펫 선택
+  const ownPets=PETS.filter(pt=>petCount(pt.id)>0);
+  const cur=(META.selPet&&petCount(META.selPet)>0)?PET_BY[META.selPet]:null;
+  h+=`<div class="ssl2" style="margin-top:10px;">🤖 펫${cur?` <span style="color:${cur.color}">· ${cur.name} Lv${petLevel(cur.id)}</span>`:""}</div>`;
+  if(!ownPets.length){h+=`<div style="font-size:11px;color:var(--muted);padding:2px 0 4px;">보유한 펫이 없습니다 · 상자에서 획득하세요</div>`;}
+  else{h+=`<div class="cchips"><div class="mapchip ${!META.selPet?"on":""}" data-cpet="">없음</div>`+
+    ownPets.map(pt=>`<div class="mapchip ${META.selPet===pt.id?"on":""}" data-cpet="${pt.id}" style="${META.selPet===pt.id?"background:"+pt.color+";color:#08111a":"color:"+pt.color}">${pt.name} Lv${petLevel(pt.id)}</div>`).join("")+`</div>`;}
   h+=`<button class="detbtn" id="charDetBtn">ℹ️ 특성 자세히 보기</button></div>`;
   el.innerHTML=h;
   shape(document.getElementById("cselIco").getContext("2d"),c.shape,23,23,16,sk?sk.color:c.color,0.3);
@@ -2554,6 +2690,10 @@ function renderCharSkinArea(){
     META.selSkin=b.dataset.cskin||null; saveMeta(); Snd.uiTick();
     menuToast(META.selSkin?(SKINS[META.selSkin].name+" 스킨 장착"):"기본 외형");
     renderCharSkinArea(); renderCharPick(); renderMain();});
+  el.querySelectorAll("[data-cpet]").forEach(b=>b.onclick=()=>{
+    META.selPet=b.dataset.cpet||null; saveMeta(); Snd.uiTick();
+    menuToast(META.selPet?(PET_BY[META.selPet].name+" 펫 장착"):"펫 해제");
+    renderCharSkinArea();});
   const db=document.getElementById("charDetBtn");
   if(db)db.onclick=()=>showCharDetail(META.selChar);
 }
@@ -2901,6 +3041,7 @@ function openChest(type,count){
   const agg={};                 // 카드id -> 이번에 얻은 장수(합산)
   const newSet=new Set();        // 이번에 '업글 가능'이 된 카드
   const charAgg={}, charNew=new Set();   // 캐릭터 드랍
+  const petAgg={}, petNew=new Set();     // 펫 드랍
   let gemDrop=0;                 // 상자에서 낮은 확률로 나오는 소량 다이아
   const gemChance=((type==="p")?CFG.chestGemChanceP:CFG.chestGemChanceN)+eventFx("chestGemBonus",0);
   const charChance=(type==="p")?CFG.charDropP:CFG.charDropN;   // 상자에서 캐릭터 나올 확률
@@ -2915,6 +3056,10 @@ function openChest(type,count){
       agg[id]=(agg[id]||0)+1;
       if(r.newElig)newSet.add(id);
     }
+    if(Math.random()<(type==="p"?0.30:0.12)){ const pp=rollPet(CHAR_GACHA[type].weights);
+      META.pets=META.pets||{}; const wasP=petCount(pp.id)>0; META.pets[pp.id]=(META.pets[pp.id]||0)+1;
+      petAgg[pp.id]=(petAgg[pp.id]||0)+1; if(!wasP)petNew.add(pp.id);
+      if(!META.selPet)META.selPet=pp.id; }
     if(Math.random()<charChance){ const cc=rollChar(CHAR_GACHA[type].weights);
       const wasOwned=charCount(cc.id)>0; META.chars[cc.id]=(META.chars[cc.id]||0)+1;
       charAgg[cc.id]=(charAgg[cc.id]||0)+1; if(!wasOwned)charNew.add(cc.id); }
@@ -2923,9 +3068,9 @@ function openChest(type,count){
   if(gemDrop>0)META.gems+=gemDrop;
   saveMeta();saveDex();
   renderChestBar();
-  playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew);
+  playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew,petAgg,petNew);
 }
-function playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew){
+function playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew,petAgg,petNew){
   const modal=document.getElementById("chestOpenModal"),stage=document.getElementById("chestStage"),done=document.getElementById("chestDone");
   modal.classList.add("show"); done.style.display="none";
   // 1단계: 흔들리는 상자
@@ -2953,6 +3098,16 @@ function playChestOpen(ch,agg,num,newSet,gemDrop,charAgg,charNew){
             <canvas width="54" height="54" data-shape="${c.shape}" data-color="${c.color}"></canvas>
             <div class="nm" style="color:${r.color}">${c.name}</div>
             <div class="cnt">${charNew.has(id)?'<span style="color:#57e0c0">NEW!</span>':('강화 ×'+charAgg[id])}</div></div>`;});
+        g+=`</div>`;
+      }
+      const pids2=Object.keys(petAgg||{});
+      if(pids2.length){
+        g+=`<div style="color:#57e0c0;font-weight:800;font-size:13px;margin:2px 0 6px;">🤖 펫 획득!</div><div class="openGrid" style="margin-bottom:12px;">`;
+        pids2.forEach(id=>{const pt=PET_BY[id],r=RARITY[pt.rarity];
+          g+=`<div class="opencard" style="border-color:${r.color};box-shadow:0 0 12px ${r.color}55">
+            <canvas width="54" height="54" data-shape="${pt.shape}" data-color="${pt.color}"></canvas>
+            <div class="nm" style="color:${r.color}">${pt.name}</div>
+            <div class="cnt">${petNew.has(id)?'<span style="color:#57e0c0">NEW!</span>':('강화 ×'+petAgg[id])}</div></div>`;});
         g+=`</div>`;
       }
       g+=`<div class="openGrid">`;
@@ -3220,6 +3375,19 @@ function renderCollection(){
   h+=`<div class="dexgroup"><div class="gt">💠 패시브 융합 (${suArr.filter(id=>DEX.su[id]||(META.cards[id]||0)>0).length}/${suArr.length})</div><div class="dexgrid">`;
   h+=suArr.map(id=>dexCell(!!DEX.su[id]||(META.cards[id]||0)>0,cardInfo(id),"sup",'data-card="'+id+'"')).join("");
   h+=`</div></div>`;
+  // 신화 무기 도감
+  const myArr=Object.keys(MYTHICS);
+  h+=`<div class="dexgroup"><div class="gt">🔥 신화 무기 (${myArr.filter(id=>DEX.my&&DEX.my[id]).length}/${myArr.length})</div><div class="dexgrid">`;
+  h+=myArr.map(id=>{const m=MYTHICS[id];
+    return dexCell(!!(DEX.my&&DEX.my[id]),{name:m.name,shape:m.shape,color:m.color},"evo");}).join("");
+  h+=`</div></div>`;
+  // 펫 도감
+  h+=`<div class="dexgroup"><div class="gt">🤖 펫 (${PETS.filter(pt=>petCount(pt.id)>0).length}/${PETS.length})</div><div class="dexgrid">`;
+  h+=PETS.map(pt=>{const own=petCount(pt.id)>0;
+    if(!own)return `<div class="dexcell locked"><div class="q">?</div><div class="nm">???</div></div>`;
+    return `<div class="dexcell"><div class="lv" style="position:absolute;top:2px;right:4px;font-size:9px;font-weight:900;color:var(--gold);">Lv${petLevel(pt.id)}</div>
+      <canvas width="54" height="54" data-shape="${pt.shape}" data-color="${pt.color}"></canvas><div class="nm">${pt.name}</div></div>`;}).join("");
+  h+=`</div></div>`;
   // 카드 인벤토리
   const allCards=[...COMMON_CARDS,...RARE_CARDS];
   h+=`<div class="dexgroup"><div class="gt">🃏 내 카드 (중복 수집 시 레벨업)</div><div class="dexgrid">`;
@@ -3349,6 +3517,7 @@ function endGame(){
   document.getElementById("endStats").innerHTML=
     `생존 <b>${mm}:${String(ss).padStart(2,"0")}</b> · 레벨 <b>${G.level}</b> · 처치 <b>${G.kills}</b> · 최대콤보 <b>×${G.maxCombo}</b>`+
     (evoNames.length?`<br>합성 진화: <b>${evoNames.join(", ")}</b>`:"")+
+    (G.tower?`<br>🏯 도달 <b style="color:var(--gold)">${G.floor+1}층</b>${G.floor>=towerBest()?" <span style='color:var(--xp)'>신기록!</span>":""}`:"")+
     `<br>난이도 <b style="color:${G.diffRef.color}">${G.diffRef.name}</b> (보상 ×${G.diffRef.reward})`+
     (G.arcana?` · 아르카나 <b style="color:var(--gold)">${G.arcana.name}</b>`:"")+
     (evoNames.length?`<br>합성 진화: <b>${evoNames.join(", ")}</b>`:"")+
@@ -3368,6 +3537,7 @@ document.getElementById("revAdBtn").onclick=()=>{
   showAd(()=>{ doRevive(); });};
 document.getElementById("revGiveUp").onclick=()=>{closeRevive();endGame();};
 document.getElementById("startBtn").onclick=()=>openArcana({});
+document.getElementById("towerBtn").onclick=()=>openArcana({tower:true});
 document.getElementById("restartBtn").onclick=()=>{
   document.getElementById("endScreen").classList.add("hide");
   document.getElementById("startScreen").classList.remove("hide");
