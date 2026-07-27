@@ -372,6 +372,19 @@
   .adevent .en{font-size:12.5px;font-weight:800;} .adevent .ed{font-size:10px;color:var(--muted);margin:2px 0 6px;}
   .adevent .durs{display:flex;gap:5px;} .adevent .durs button{flex:1;padding:6px 0;border:none;border-radius:8px;background:#26304d;color:var(--txt);font-size:11px;font-weight:800;cursor:pointer;}
   .adevent.on{border-color:var(--gold);} .adevent .durs button.stop{background:var(--danger);color:#3a0010;}
+  /* 밸런스 편집기 */
+  #balModal{position:fixed;inset:0;z-index:60;background:rgba(4,6,12,.9);backdrop-filter:blur(3px);
+    display:none;align-items:center;justify-content:center;padding:16px;}
+  #balModal.show{display:flex;}
+  #balBody{max-height:64vh;overflow-y:auto;text-align:left;}
+  .balgrp{margin-bottom:12px;}
+  .balt{font-size:12.5px;font-weight:800;color:var(--acc);margin:0 0 6px;}
+  .balrow{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;margin-bottom:7px;
+    background:#0f1424;border:1px solid #1d2540;border-radius:9px;padding:7px 9px;}
+  .baln{font-size:11.5px;font-weight:700;color:var(--txt);grid-column:1/2;}
+  .balrow input[type=range]{grid-column:1/2;height:22px;}
+  .balnum{grid-column:2/3;grid-row:1/3;width:66px;padding:6px 4px;border-radius:8px;border:1px solid #33406a;
+    background:#141a2b;color:var(--gold);font-size:12px;font-weight:800;text-align:center;}
   /* 업적 */
   .achrow{display:flex;align-items:center;gap:10px;background:#141a2b;border:1px solid #26304d;border-radius:11px;
     padding:9px 11px;margin-bottom:6px;text-align:left;}
@@ -561,6 +574,18 @@
   <button class="dclose" id="revGiveUp">포기하기 (<span id="revCount">10</span>)</button>
 </div></div>
 
+<!-- 밸런스 편집기 (관리자) -->
+<div id="balModal"><div class="dbox wide">
+  <h2 style="margin:0 0 4px;font-size:19px;text-align:center;">⚖️ 밸런스 편집기</h2>
+  <p style="font-size:11px;color:var(--muted);text-align:center;margin:0 0 12px;">값을 바꾸면 <b>다음 판부터</b> 적용됩니다 (일부는 즉시)</p>
+  <div id="balBody"></div>
+  <div class="cfgbtns" style="margin-top:10px;">
+    <button id="balExport" style="background:#26304d;color:var(--txt);">📤 내보내기</button>
+    <button id="balImport" style="background:#26304d;color:var(--txt);">📥 불러오기</button>
+  </div>
+  <button class="dclose" id="balClose">닫기</button>
+</div></div>
+
 <!-- 아르카나 선택 (런 시작) -->
 <div id="arcanaModal"><div class="dbox wide">
   <h2 style="margin:0 0 4px;font-size:19px;text-align:center;color:var(--gold);">🎴 아르카나</h2>
@@ -588,6 +613,11 @@
     <div class="admrow">
       <button data-adm="chestN">일반상자 +10</button><button data-adm="chestP">고급상자 +5</button>
       <button data-adm="charAll">캐릭터 전해금</button>
+    </div>
+    <div class="adsub">⚖️ 밸런스 조절</div>
+    <div class="admrow">
+      <button id="admBalOpen">밸런스 편집기 열기</button>
+      <button id="admBalReset" style="color:var(--danger);border-color:#5a2a38">기본값 복원</button>
     </div>
     <div class="adsub">🎉 이벤트 개설</div>
     <div id="adminEvents"></div>
@@ -1145,8 +1175,51 @@ function stopEvent(){ ACTIVE_EVENT=null; saveEvent(); }
 /* ================================================================
    무기 10종 / 진화 10종
    ================================================================ */
-const MAXLV=8, WEAPON_SLOTS=4;   // 무기 슬롯 상한(가득 차면 보유 무기 강화만 등장)
-const PASSIVE_SLOTS=4;           // 패시브 슬롯 상한(가득 차면 보유 패시브 강화만 등장)
+/* ================================================================
+   CONFIG — 관리자에서 조절 가능한 밸런스 값 (localStorage 오버레이)
+   게임 코드는 CFG.xxx 를 참조 → 관리자가 바꾸면 즉시 반영
+   ================================================================ */
+const CFG_KEY="geoSurv.cfg.v1";
+const CFG_DEFAULT={
+  // 슬롯/레벨
+  weaponSlots:4, passiveSlots:4, maxWeaponLv:8,
+  // 플레이어
+  playerHp:100, playerSpeed:135, playerPickup:70, playerCrit:0.10,
+  // 적
+  enemyHpScale:0.022,     // 시간당 체력 증가
+  enemyDmgScale:0.014,    // 시간당 피해 증가
+  enemySpdScale:0.010,    // 시간당 속도 증가
+  spawnRate:0.62,         // 낮을수록 자주 스폰
+  spawnAccel:0.05,        // 시간당 스폰 가속
+  eliteInterval:22,       // 정예 주기(초)
+  bossInterval:90,        // 보스 주기(초)
+  bossHp:900, bossDmg:20,
+  // 게임 흐름
+  waveDur:30, reviveGem:10, levelUpIframe:1.3,
+  xpCurve:1.32,           // 레벨업 필요 경험치 증가율
+  // 성능 상한
+  maxEnemies:110, maxBullets:200, maxParticles:220,
+  // 경제
+  goldPerKill:0.5, goldPerSec:0.3, chestGemChanceN:0.08, chestGemChanceP:0.22,
+  charDropN:0.15, charDropP:0.40,
+  // 배수(전역)
+  globalDmgMul:1.0, globalXpMul:1.0, globalGoldMul:1.0,
+};
+let CFG=Object.assign({},CFG_DEFAULT);
+function loadCfg(){try{const r=localStorage.getItem(CFG_KEY);if(r)CFG=Object.assign({},CFG_DEFAULT,JSON.parse(r));}catch(e){}}
+function saveCfg(){try{localStorage.setItem(CFG_KEY,JSON.stringify(CFG));}catch(e){}}
+function resetCfg(){CFG=Object.assign({},CFG_DEFAULT);saveCfg();}
+loadCfg();
+
+const MAXLV=8;
+let WEAPON_SLOTS=CFG.weaponSlots, PASSIVE_SLOTS=CFG.passiveSlots;
+let MAX_ENEMIES=CFG.maxEnemies, MAX_BULLETS=CFG.maxBullets, MAX_PARTICLES=CFG.maxParticles;
+let WAVE_DUR=CFG.waveDur, REVIVE_GEM=CFG.reviveGem;
+function applyCfg(){   // CFG 변경 후 파생 변수 갱신
+  WEAPON_SLOTS=CFG.weaponSlots; PASSIVE_SLOTS=CFG.passiveSlots;
+  MAX_ENEMIES=CFG.maxEnemies; MAX_BULLETS=CFG.maxBullets; MAX_PARTICLES=CFG.maxParticles;
+  WAVE_DUR=CFG.waveDur; REVIVE_GEM=CFG.reviveGem;
+}
 const WEAPONS={
   tri_shot:{id:"tri_shot",name:"관통탄",shape:"triangle",color:"#8b7cff",desc:"가까운 적에게 관통 삼각탄",fuseWith:"haste",evo:"hex_saw"},
   sq_orbit:{id:"sq_orbit",name:"궤도 큐브",shape:"square",color:"#57e0c0",desc:"몸 주위를 도는 네모 타격",fuseWith:"amp",evo:"star_burst"},
@@ -1234,12 +1307,12 @@ function newGame(opts){
   opts=opts||{};
   G={
     t:0,kills:0,gold:0,combo:0,comboT:0,maxCombo:0,
-    player:{x:0,y:0,r:13,hp:100,maxhp:100,regen:0,speed:135,pickup:70,
-      dmgMult:1,hasteMult:1,spdMult:1,crit:0.10,areaMult:1,armorMult:1,thornDmg:0,iframe:0},
+    player:{x:0,y:0,r:13,hp:CFG.playerHp,maxhp:CFG.playerHp,regen:0,speed:CFG.playerSpeed,pickup:CFG.playerPickup,
+      dmgMult:1,hasteMult:1,spdMult:1,crit:CFG.playerCrit,areaMult:1,armorMult:1,thornDmg:0,iframe:0},
     weapons:[],passives:{},supers:{},
     enemies:[],bullets:[],ebullets:[],gems:[],particles:[],texts:[],rings:[],
     xp:0,xpNext:5,level:1,xpMult:1,
-    spawnAcc:0,eliteTimer:16,boss:null,nextBossAt:90,hurtFx:0,camShake:0,
+    spawnAcc:0,eliteTimer:Math.min(16,CFG.eliteInterval),boss:null,nextBossAt:CFG.bossInterval,hurtFx:0,camShake:0,
     daily:null,noPassives:false,spawnMult:1,enemySpdMult:1,goldMult:1,dmgTakenMult:1,
     diff:0,diffRef:DIFFS[0],arcana:null,bossKills:0,noHitT:0,noHitBest:0,enemyHpMul:1,enemyDmgMul:1,
     wave:0,waveT:WAVE_DUR,calmT:0,revived:false,
@@ -1265,7 +1338,7 @@ function newGame(opts){
   G.lifesteal=G.cmod.lifesteal;
   G.selCharRef=ch;
   G.skin=(META.selSkin&&ownSkin(META.selSkin))?SKINS[META.selSkin]:null;   // 패스 스킨
-  p.maxhp=100+META_UPS[0].val*metaLv("hp");
+  p.maxhp=CFG.playerHp+META_UPS[0].val*metaLv("hp");
   G.xpMult=1+0.08*metaLv("xp");
   if(opts.daily){
     const d=getDaily(); G.daily=d;
@@ -1304,20 +1377,20 @@ function recalcPassives(){
   if(S.frenzy){haste+=0.15;dmg+=0.15;}
   if(S.overdrive){crit+=0.15;spd+=0.15;}
   p.hasteMult=(1+haste)*(cm.hasteMul||1)*arcFx("hasteMul",1);
-  p.dmgMult=(1+0.06*metaLv("dmg"))*(1+dmg)*(G.daily&&G.daily.mods.some(m=>m.id==="berserk")?1.3:1)*(cm.dmgMul||1)*arcFx("dmgMul",1);
-  p.pickup=70*(1+0.15*metaLv("magnet"))*(1+0.30*(P.magnet||0))*(cm.pickupMul||1)*arcFx("pickupMul",1);
+  p.dmgMult=(1+0.06*metaLv("dmg"))*(1+dmg)*(G.daily&&G.daily.mods.some(m=>m.id==="berserk")?1.3:1)*(cm.dmgMul||1)*arcFx("dmgMul",1)*CFG.globalDmgMul;
+  p.pickup=CFG.playerPickup*(1+0.15*metaLv("magnet"))*(1+0.30*(P.magnet||0))*(cm.pickupMul||1)*arcFx("pickupMul",1);
   p.spdMult=(1+0.05*metaLv("spd"))*(1+spd)*(G.daily&&G.daily.mods.some(m=>m.id==="slow")?0.9:1)*(cm.spdMul||1)*arcFx("spdMul",1);
-  p.crit=0.10+0.04*metaLv("crit")+crit+(G.daily&&G.daily.mods.some(m=>m.id==="sniper")?0.15:0)+(cm.critAdd||0)+arcFx("critAdd",0);
+  p.crit=CFG.playerCrit+0.04*metaLv("crit")+crit+(G.daily&&G.daily.mods.some(m=>m.id==="sniper")?0.15:0)+(cm.critAdd||0)+arcFx("critAdd",0);
   p.areaMult=(1+0.10*(P.area||0))*(cm.areaMul||1);
   p.armorMult=Math.max(0.3,(1-0.08*(P.armor||0))*(S.juggernaut?0.8:1)*(cm.armorMul||1));
   p.thornDmg=5*(P.thorn||0)*(S.juggernaut?2:1);
-  const hpBase=(100+META_UPS[0].val*metaLv("hp")+25*(P.vigor||0))*(cm.hpMul||1)*arcFx("hpMul",1);
+  const hpBase=(CFG.playerHp+META_UPS[0].val*metaLv("hp")+25*(P.vigor||0))*(cm.hpMul||1)*arcFx("hpMul",1);
   const glass=G.daily&&G.daily.mods.some(m=>m.id==="glass")?0.5:1;
   const newMax=hpBase*glass;
   if(newMax>p.maxhp)p.hp+=newMax-p.maxhp;
   p.maxhp=newMax; if(p.hp>p.maxhp)p.hp=p.maxhp;
   p.regen=0.4*(P.vigor||0)+(cm.regenAdd||0);
-  G.xpMult=(1+0.08*metaLv("xp"))*(1+0.10*(P.luck||0))*(cm.xpMul||1)*eventFx("xpMul",1)*arcFx("xpMul",1);
+  G.xpMult=(1+0.08*metaLv("xp"))*(1+0.10*(P.luck||0))*(cm.xpMul||1)*eventFx("xpMul",1)*arcFx("xpMul",1)*CFG.globalXpMul;
 }
 
 /* ================================================================
@@ -1372,7 +1445,7 @@ const REROLL_COST=3, REROLL_MAX=3;
 function showNextChoice(){
   const ev=choiceQueue.shift();
   if(!ev){overlayShowing=false;paused=false;currentEv=null;lastT=performance.now();
-    if(G&&G.player)G.player.iframe=Math.max(G.player.iframe,1.3);   // 레벨업 후 짧은 무적
+    if(G&&G.player)G.player.iframe=Math.max(G.player.iframe,CFG.levelUpIframe);   // 레벨업 후 짧은 무적
     return;}
   overlayShowing=true;paused=true;
   currentEv=ev; rerollsLeft=REROLL_MAX;   // 새 선택마다 리롤 3회 리셋
@@ -1618,8 +1691,8 @@ function tierOf(v,th){let t=1;for(const x of th)if(v>=x)t++;return t;}
 function starBar(n){let s="";for(let i=0;i<5;i++)s+=i<n?"●":"○";return s;}
 function makeEnemy(base,ang,dist,elite){
   const p=G.player,d=dist,a=ang;
-  const scale=1+G.t*0.022,sscale=Math.min(1+G.t*0.010,1.8)*G.enemySpdMult;
-  const dscale=(1+G.t*0.014)*(G.enemyDmgMul||1); // 시간 경과 + 난이도 → 접촉/탄환 피해
+  const scale=1+G.t*CFG.enemyHpScale,sscale=Math.min(1+G.t*CFG.enemySpdScale,1.8)*G.enemySpdMult;
+  const dscale=(1+G.t*CFG.enemyDmgScale)*(G.enemyDmgMul||1); // 시간 경과 + 난이도 → 접촉/탄환 피해
   const hpm=(G.enemyHpMul||1);
   G.enemies.push({x:p.x+Math.cos(a)*d,y:p.y+Math.sin(a)*d,shape:base.shape,color:base.color,typeId:base.id,
     behavior:base.behavior||"chase",shootT:rand(1.2,2.4),mini:false,
@@ -1655,9 +1728,9 @@ function fireEnemyBullet(e,p){
 function spawnBoss(){
   const p=G.player,ang=Math.random()*6.2832,d=Math.max(W,H)*0.7;
   discover("en","e_boss");
-  const hp=900*(1+G.t*0.03)*(G.enemyHpMul||1);
+  const hp=CFG.bossHp*(1+G.t*0.03)*(G.enemyHpMul||1);
   G.boss={x:p.x+Math.cos(ang)*d,y:p.y+Math.sin(ang)*d,shape:"hexagon",color:"#ff3b5c",
-    hp,maxhp:hp,spd:52,r:34,dmg:20*(1+G.t*0.012)*(G.enemyDmgMul||1),rot:0,hit:0,kx:0,ky:0,ringT:2.5,elite:true,slowT:0,burnT:0,burnDmg:0};
+    hp,maxhp:hp,spd:52,r:34,dmg:CFG.bossDmg*(1+G.t*0.012)*(G.enemyDmgMul||1),rot:0,hit:0,kx:0,ky:0,ringT:2.5,elite:true,slowT:0,burnT:0,burnDmg:0};
   flash("⚠ 보스 출현!","#ff3b5c");bigFX("BOSS","#ff3b5c");screenFlash("#ff3b5c",0.25);
   Snd.boss();vibrate([60,50,60]);G.camShake=16;
   document.getElementById("bossBar").style.display="block";
@@ -1666,8 +1739,6 @@ function spawnBoss(){
 let _targets=[];
 function rebuildTargets(){_targets.length=0;const es=G.enemies;for(let i=0;i<es.length;i++)_targets.push(es[i]);if(G.boss)_targets.push(G.boss);return _targets;}
 function allTargets(){return _targets;}
-const MAX_ENEMIES=110, MAX_BULLETS=200, MAX_PARTICLES=220;
-const WAVE_DUR=30;   // 웨이브 1구간 길이(초)
 function clampArena(o){const a=(G.arena||99999)-o.r; if(o.x<-a)o.x=-a; else if(o.x>a)o.x=a; if(o.y<-a)o.y=-a; else if(o.y>a)o.y=a;}
 function resolveObstacles(o){const obs=G.obstacles; if(!obs||!obs.length)return;
   for(let i=0;i<obs.length;i++){const ob=obs[i],dx=o.x-ob.x,dy=o.y-ob.y,rr=ob.r+o.r,d2=dx*dx+dy*dy;
@@ -1695,9 +1766,9 @@ function update(dt){
   G.noHitT+=dt; if(G.noHitT>G.noHitBest)G.noHitBest=G.noHitT;
 
   G.spawnAcc+=dt;
-  const rate=0.62/((1+G.t*0.05)*G.spawnMult*(G.calmT>0?0.25:1));
+  const rate=CFG.spawnRate/((1+G.t*CFG.spawnAccel)*G.spawnMult*(G.calmT>0?0.25:1));
   while(G.spawnAcc>=rate){G.spawnAcc-=rate;if(G.enemies.length<MAX_ENEMIES)spawnEnemy(false);}
-  G.eliteTimer-=dt;if(G.eliteTimer<=0){G.eliteTimer=22;spawnEnemy(true);flash("정예 등장","#ffa14a");}
+  G.eliteTimer-=dt;if(G.eliteTimer<=0){G.eliteTimer=CFG.eliteInterval;spawnEnemy(true);flash("정예 등장","#ffa14a");}
   // 웨이브 구간(30초) — 클리어 시 보상 + 잠깐의 소강
   G.waveT-=dt;
   if(G.waveT<=0){
@@ -1708,7 +1779,7 @@ function update(dt){
     bigFX("WAVE "+G.wave,"#8b7cff"); pushRing(p.x,p.y,"#8b7cff",200); Snd.combo(2); vibrate(25);
   }
   if(G.calmT>0)G.calmT-=dt;
-  if(!G.boss&&G.t>=G.nextBossAt){G.nextBossAt+=90;spawnBoss();}
+  if(!G.boss&&G.t>=G.nextBossAt){G.nextBossAt+=CFG.bossInterval;spawnBoss();}
 
   // 적 이동/상태
   for(const e of G.enemies){
@@ -1875,7 +1946,7 @@ function explodeAt(x,y,dmg,radius,color){
   G.camShake=Math.max(G.camShake,7);Snd.boom();
 }
 function gainXP(n){G.xp+=n*G.xpMult;Snd.pickup(Math.min(24,G.level));
-  while(G.xp>=G.xpNext){G.xp-=G.xpNext;G.level++;G.xpNext=Math.round(G.xpNext*1.32+3);queueLevelUp();}}
+  while(G.xp>=G.xpNext){G.xp-=G.xpNext;G.level++;G.xpNext=Math.round(G.xpNext*CFG.xpCurve+3);queueLevelUp();}}
 function queueLevelUp(){
   document.getElementById("lvNum").textContent=G.level;
   if(G.level%5===0){
@@ -2542,6 +2613,78 @@ document.getElementById("pinOk").onclick=()=>{
     renderAdmin();
   }else menuToast("PIN이 틀렸습니다");
 };
+/* ---------- 밸런스 편집기 ---------- */
+const BAL_GROUPS=[
+  {t:"🎯 슬롯 / 성장",items:[
+    {k:"weaponSlots",n:"무기 슬롯",min:1,max:8,step:1},
+    {k:"passiveSlots",n:"패시브 슬롯",min:1,max:8,step:1},
+    {k:"xpCurve",n:"레벨업 요구치 증가율",min:1.05,max:2,step:0.01},
+    {k:"levelUpIframe",n:"레벨업 후 무적(초)",min:0,max:5,step:0.1},
+  ]},
+  {t:"🧍 플레이어",items:[
+    {k:"playerHp",n:"기본 체력",min:20,max:500,step:10},
+    {k:"playerSpeed",n:"이동 속도",min:60,max:300,step:5},
+    {k:"playerPickup",n:"획득 범위",min:20,max:300,step:5},
+    {k:"playerCrit",n:"기본 치명타",min:0,max:1,step:0.01},
+    {k:"globalDmgMul",n:"전체 공격력 배수",min:0.2,max:5,step:0.05},
+  ]},
+  {t:"👾 적 / 난이도",items:[
+    {k:"enemyHpScale",n:"적 체력 증가/초",min:0,max:0.1,step:0.002},
+    {k:"enemyDmgScale",n:"적 피해 증가/초",min:0,max:0.06,step:0.002},
+    {k:"enemySpdScale",n:"적 속도 증가/초",min:0,max:0.05,step:0.002},
+    {k:"spawnRate",n:"스폰 간격(낮을수록↑)",min:0.1,max:2,step:0.02},
+    {k:"spawnAccel",n:"스폰 가속/초",min:0,max:0.2,step:0.005},
+    {k:"eliteInterval",n:"정예 주기(초)",min:5,max:120,step:1},
+    {k:"bossInterval",n:"보스 주기(초)",min:20,max:300,step:5},
+    {k:"bossHp",n:"보스 체력",min:100,max:9000,step:100},
+    {k:"bossDmg",n:"보스 피해",min:5,max:100,step:1},
+  ]},
+  {t:"🌊 흐름 / 성능",items:[
+    {k:"waveDur",n:"웨이브 길이(초)",min:10,max:120,step:5},
+    {k:"reviveGem",n:"부활 비용(💎)",min:0,max:100,step:1},
+    {k:"maxEnemies",n:"최대 적 수",min:30,max:300,step:10},
+    {k:"maxBullets",n:"최대 투사체",min:50,max:600,step:25},
+    {k:"maxParticles",n:"최대 파티클",min:50,max:600,step:20},
+  ]},
+  {t:"💰 경제 / 드랍",items:[
+    {k:"goldPerKill",n:"처치당 코어",min:0,max:5,step:0.1},
+    {k:"goldPerSec",n:"생존 초당 코어",min:0,max:5,step:0.1},
+    {k:"globalGoldMul",n:"전체 코어 배수",min:0.1,max:10,step:0.1},
+    {k:"globalXpMul",n:"전체 경험치 배수",min:0.1,max:10,step:0.1},
+    {k:"chestGemChanceN",n:"일반상자 다이아 확률",min:0,max:1,step:0.01},
+    {k:"chestGemChanceP",n:"고급상자 다이아 확률",min:0,max:1,step:0.01},
+    {k:"charDropN",n:"일반상자 캐릭 확률",min:0,max:1,step:0.01},
+    {k:"charDropP",n:"고급상자 캐릭 확률",min:0,max:1,step:0.01},
+  ]},
+];
+function openBal(){document.getElementById("balModal").classList.add("show");renderBal();Snd.init();Snd.uiTick();}
+function renderBal(){
+  const el=document.getElementById("balBody");
+  el.innerHTML=BAL_GROUPS.map(g=>`<div class="balgrp"><div class="balt">${g.t}</div>`+
+    g.items.map(it=>{const v=CFG[it.k],def=CFG_DEFAULT[it.k],chg=v!==def;
+      return `<div class="balrow">
+        <div class="baln">${it.n}${chg?' <span style="color:var(--gold);font-size:9px;">●변경</span>':''}</div>
+        <input type="range" data-bal="${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" value="${v}">
+        <input type="number" class="balnum" data-baln="${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" value="${v}">
+      </div>`;}).join("")+`</div>`).join("");
+  el.querySelectorAll("[data-bal]").forEach(r=>r.oninput=()=>setBal(r.dataset.bal,parseFloat(r.value)));
+  el.querySelectorAll("[data-baln]").forEach(n=>n.onchange=()=>setBal(n.dataset.baln,parseFloat(n.value)));
+}
+function setBal(k,v){
+  if(isNaN(v))return;
+  CFG[k]=v; saveCfg(); applyCfg();
+  renderBal();
+}
+document.getElementById("balClose").onclick=()=>document.getElementById("balModal").classList.remove("show");
+document.getElementById("balExport").onclick=()=>{
+  const txt=JSON.stringify(CFG,null,1);
+  if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>menuToast("클립보드에 복사됨"),()=>prompt("복사하세요:",txt));
+  else prompt("복사하세요:",txt);};
+document.getElementById("balImport").onclick=()=>{
+  const t=prompt("밸런스 JSON 붙여넣기:"); if(!t)return;
+  try{CFG=Object.assign({},CFG_DEFAULT,JSON.parse(t));saveCfg();applyCfg();renderBal();menuToast("불러오기 완료 ✓");}
+  catch(e){menuToast("잘못된 JSON ✗");}};
+
 function renderAdmin(){
   document.getElementById("adGold").textContent=META.gold;
   document.getElementById("adGem").textContent=META.gems;
@@ -2554,6 +2697,9 @@ function renderAdmin(){
       <div class="durs">${on?`<button class="stop" data-ev="${ev.id}:stop">종료</button>`:
         `<button data-ev="${ev.id}:1">1일</button><button data-ev="${ev.id}:3">3일</button><button data-ev="${ev.id}:7">7일</button>`}</div></div>`;
   }).join("");
+  const bo=document.getElementById("admBalOpen"); if(bo)bo.onclick=openBal;
+  const br=document.getElementById("admBalReset");
+  if(br)br.onclick=()=>{if(confirm("밸런스를 기본값으로 되돌릴까요?")){resetCfg();applyCfg();menuToast("기본값 복원됨");}};
   ee.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>{
     const [id,d]=b.dataset.ev.split(":");
     if(d==="stop"){stopEvent();menuToast("이벤트 종료");}
@@ -2698,8 +2844,8 @@ function openChest(type,count){
   const newSet=new Set();        // 이번에 '업글 가능'이 된 카드
   const charAgg={}, charNew=new Set();   // 캐릭터 드랍
   let gemDrop=0;                 // 상자에서 낮은 확률로 나오는 소량 다이아
-  const gemChance=((type==="p")?0.22:0.08)+eventFx("chestGemBonus",0);
-  const charChance=(type==="p")?0.40:0.15;   // 상자에서 캐릭터 나올 확률
+  const gemChance=((type==="p")?CFG.chestGemChanceP:CFG.chestGemChanceN)+eventFx("chestGemBonus",0);
+  const charChance=(type==="p")?CFG.charDropP:CFG.charDropN;   // 상자에서 캐릭터 나올 확률
   for(let c=0;c<num;c++){
     const drawn=[];
     for(let i=0;i<ch.pulls;i++){
@@ -3040,7 +3186,6 @@ function menuToast(msg){
 
 /* ---------- 판 종료 광고 ---------- */
 /* ---------- 부활 (판당 1회: 💎10 또는 광고) ---------- */
-const REVIVE_GEM=10;
 function onPlayerDead(){
   if(G.revived){endGame();return;}       // 이미 1회 사용 → 종료
   running=false; paused=false; endStick();
@@ -3112,7 +3257,7 @@ function endGame(){
   overlay.classList.remove("show");choiceQueue.length=0;overlayShowing=false;
   document.getElementById("combo").style.opacity=0;
   const survived=G.t;
-  let earned=Math.floor((G.kills*0.5+survived*0.3+G.gold)*G.goldMult*eventFx("goldMul",1));
+  let earned=Math.floor((G.kills*CFG.goldPerKill+survived*CFG.goldPerSec+G.gold)*G.goldMult*eventFx("goldMul",1)*CFG.globalGoldMul);
   let dailyMsg="";
   if(G.daily){
     const ok=G.daily.goal.check(G);
