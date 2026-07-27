@@ -357,6 +357,8 @@
   #charModal,#attendModal,#adminModal{position:fixed;inset:0;z-index:56;background:rgba(4,6,12,.82);backdrop-filter:blur(3px);
     display:none;align-items:center;justify-content:center;padding:20px;}
   #charModal.show,#attendModal.show,#adminModal.show{display:flex;}
+  .noticebar{background:linear-gradient(135deg,#152a3f,#1b3550);border:1px solid #2f5f8a;border-radius:12px;
+    padding:9px 12px;margin:4px 0;font-size:12px;color:#cfe6ff;line-height:1.4;text-align:left;}
   /* 이벤트 배너 */
   #eventBanner{width:100%;max-width:340px;}
   .evbanner{background:linear-gradient(135deg,#2a2410,#3a2f14);border:1px solid var(--gold);border-radius:12px;
@@ -614,6 +616,12 @@
       <button data-adm="chestN">일반상자 +10</button><button data-adm="chestP">고급상자 +5</button>
       <button data-adm="charAll">캐릭터 전해금</button>
     </div>
+    <div class="adsub">🌐 관리자 서버 연동</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <input id="srvUrlInput" class="inp" placeholder="http://192.168.0.8:8899" style="flex:1;padding:9px;border-radius:9px;border:1px solid #33406a;background:#0f1424;color:#e8ecf7;font-size:12px;">
+      <button id="srvSaveBtn" style="padding:9px 12px;border:1px solid #33406a;border-radius:9px;background:#1b2338;color:#e8ecf7;font-size:12px;font-weight:800;">연결</button>
+    </div>
+    <div id="srvStatus" style="font-size:10.5px;color:var(--muted);margin-bottom:10px;"></div>
     <div class="adsub">⚖️ 밸런스 조절</div>
     <div class="admrow">
       <button id="admBalOpen">밸런스 편집기 열기</button>
@@ -644,6 +652,7 @@
     <div class="tagline">도형을 합성해 무기를 진화시켜라.<br>끝없는 도형 무리에서 최대한 오래 생존!</div>
     <div id="loginBar"></div>
     <div class="goldbar">◆ <span id="goldValMain">0</span> 코어 · 💎 <span id="gemValMain">0</span></div>
+    <div id="noticeBar"></div>
     <div id="eventBanner"></div>
     <div class="bestline" id="bestLine"></div>
     <div id="charPick"></div>
@@ -1207,6 +1216,44 @@ const CFG_DEFAULT={
 };
 let CFG=Object.assign({},CFG_DEFAULT);
 function loadCfg(){try{const r=localStorage.getItem(CFG_KEY);if(r)CFG=Object.assign({},CFG_DEFAULT,JSON.parse(r));}catch(e){}}
+/* ---- 원격(내부망 관리자 서버) config ---- */
+const SRV_KEY="geoSurv.srv.v1";
+let SRV_URL="";  // 예: http://192.168.0.8:8899
+try{SRV_URL=localStorage.getItem(SRV_KEY)||"";}catch(e){}
+function setServerUrl(u){SRV_URL=(u||"").replace(/\/+$/,"");try{localStorage.setItem(SRV_KEY,SRV_URL);}catch(e){}}
+let REMOTE_NOTICE="";
+async function fetchRemoteConfig(){
+  if(!SRV_URL)return false;
+  try{
+    const r=await fetch(SRV_URL+"/config",{cache:"no-store"});
+    if(!r.ok)return false;
+    const d=await r.json();
+    // 1) 밸런스
+    if(d.balance&&typeof d.balance==="object"){CFG=Object.assign({},CFG_DEFAULT,d.balance);saveCfg();applyCfg();}
+    // 2) 이벤트
+    if(d.event&&d.event.id&&d.event.until>Date.now()){ACTIVE_EVENT={id:d.event.id,until:d.event.until};saveEvent();}
+    else if(d.event===null&&ACTIVE_EVENT){ACTIVE_EVENT=null;saveEvent();}
+    // 3) 공지
+    REMOTE_NOTICE=d.notice||"";
+    // 4) 전체 지급(우편) — 같은 id는 1회만
+    if(d.grant&&d.grant.id){
+      META.claimedGrants=META.claimedGrants||{};
+      if(!META.claimedGrants[d.grant.id]){
+        META.claimedGrants[d.grant.id]=1;
+        if(d.grant.gems)META.gems+=d.grant.gems;
+        if(d.grant.gold)META.gold+=d.grant.gold;
+        if(d.grant.chestN)META.chests.n=(META.chests.n||0)+d.grant.chestN;
+        if(d.grant.chestP)META.chests.p=(META.chests.p||0)+d.grant.chestP;
+        saveMeta();
+        const parts=[];if(d.grant.gems)parts.push("💎"+d.grant.gems);if(d.grant.gold)parts.push("◆"+d.grant.gold);
+        if(d.grant.chestN)parts.push("🎁×"+d.grant.chestN);if(d.grant.chestP)parts.push("💠×"+d.grant.chestP);
+        setTimeout(()=>{try{menuToast("🎁 "+(d.grant.msg||"관리자 지급")+": "+parts.join(" "));}catch(e){}},600);
+      }
+    }
+    try{renderMain();}catch(e){}
+    return true;
+  }catch(e){return false;}
+}
 function saveCfg(){try{localStorage.setItem(CFG_KEY,JSON.stringify(CFG));}catch(e){}}
 function resetCfg(){CFG=Object.assign({},CFG_DEFAULT);saveCfg();}
 loadCfg();
@@ -2334,6 +2381,8 @@ function renderMain(){
   document.getElementById("bestLine").innerHTML=best?
     `최고 기록: <b>${fmtT(best.t)}</b> 생존 · Lv${best.lv} · ☠${best.k}`:"아직 기록이 없습니다. 첫 런을 시작해보세요!";
   renderCharPick(); renderMapPick(); renderDiffPick(); renderCosmetics(); renderEventBanner();
+  const nt=document.getElementById("noticeBar");
+  if(nt)nt.innerHTML=REMOTE_NOTICE?`<div class="noticebar">📢 ${REMOTE_NOTICE}</div>`:"";
 }
 /* ---------- 캐릭터/맵 선택 (메인) ---------- */
 function renderCharPick(){
@@ -2697,6 +2746,15 @@ function renderAdmin(){
       <div class="durs">${on?`<button class="stop" data-ev="${ev.id}:stop">종료</button>`:
         `<button data-ev="${ev.id}:1">1일</button><button data-ev="${ev.id}:3">3일</button><button data-ev="${ev.id}:7">7일</button>`}</div></div>`;
   }).join("");
+  const si=document.getElementById("srvUrlInput"); if(si)si.value=SRV_URL||"";
+  const ss=document.getElementById("srvStatus");
+  if(ss)ss.textContent=SRV_URL?("연결됨: "+SRV_URL):"미연결 (로컬 밸런스만 사용)";
+  const sb=document.getElementById("srvSaveBtn");
+  if(sb)sb.onclick=async()=>{setServerUrl(document.getElementById("srvUrlInput").value.trim());
+    if(ss)ss.textContent="연결 확인 중…";
+    const ok=await fetchRemoteConfig();
+    if(ss)ss.textContent=ok?("✓ 연결됨: "+SRV_URL):"✗ 연결 실패 (주소 확인)";
+    menuToast(ok?"관리자 서버 연결 ✓":"연결 실패");renderAdmin();};
   const bo=document.getElementById("admBalOpen"); if(bo)bo.onclick=openBal;
   const br=document.getElementById("admBalReset");
   if(br)br.onclick=()=>{if(confirm("밸런스를 기본값으로 되돌릴까요?")){resetCfg();applyCfg();menuToast("기본값 복원됨");}};
@@ -3318,6 +3376,8 @@ document.getElementById("restartBtn").onclick=()=>{
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&running&&!isPaused())openCfg();});
 
 loadAll();renderMain();
+fetchRemoteConfig();                       // 내부망 관리자 서버 config
+setInterval(fetchRemoteConfig,120000);     // 2분마다 갱신
 raf=requestAnimationFrame(loop);
 </script>
 </body>
